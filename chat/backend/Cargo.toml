@@ -1,0 +1,20 @@
+[package]
+name = "rusty-chat"
+version = "0.1.0"
+authors = ["Tin Rabzelj <tin@flinect.com>"]
+edition = "2018"
+
+[dependencies]
+aptos-logger = { git = "https://github.com/aptos-labs/aptos-core", branch = "testnet" }
+aptos-sdk = { git = "https://github.com/aptos-labs/aptos-core", branch = "testnet" }
+chrono = { version = "0.4.22", features = ["serde"] }
+clap = "3"
+futures = "0.3.23"
+lazy_static = "1.4.0"
+regex = "1.6.0"
+serde = { version = "1.0.143", features = ["derive"] }
+serde_json = "1.0.83"
+tokio = { version = "1.20.1", features = ["full"] }
+tokio-stream = { version = "0.1.9", features = ["sync"] }
+uuid = { version = "1.1.2", features = ["serde", "v4"] }
+warp = "0.3.2"

@@ -1,3 +1,4 @@
+use aptos_sdk::types::account_address::AccountAddress;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,32 +46,32 @@ pub enum OutputError {
 
 #[derive(Debug, Clone)]
 pub struct InputParcel {
-    pub client_id: Uuid,
+    pub client_address: AccountAddress,
     pub input: Input,
 }
 
 impl InputParcel {
-    pub fn new(client_id: Uuid, input: Input) -> Self {
-        InputParcel { client_id, input }
+    pub fn new(client_address: AccountAddress, input: Input) -> Self {
+        InputParcel { client_address, input }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct OutputParcel {
-    pub client_id: Uuid,
+    pub client_address: AccountAddress,
     pub output: Output,
 }
 
 impl OutputParcel {
-    pub fn new(client_id: Uuid, output: Output) -> Self {
-        OutputParcel { client_id, output }
+    pub fn new(client_address: AccountAddress, output: Output) -> Self {
+        OutputParcel { client_address, output }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JoinInput {
-    pub name: String,
+    pub address: AccountAddress,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -82,8 +83,7 @@ pub struct PostInput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserOutput {
-    pub id: Uuid,
-    pub name: String,
+    pub address: AccountAddress,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ pub struct UserJoinedOutput {
 #[derive(Debug, Clone, PartialEq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserLeftOutput {
-    pub user_id: Uuid,
+    pub user_address: AccountAddress,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -128,10 +128,9 @@ pub struct UserPostedOutput {
 }
 
 impl UserOutput {
-    pub fn new(id: Uuid, name: &str) -> Self {
+    pub fn new(address: AccountAddress) -> Self {
         UserOutput {
-            id,
-            name: String::from(name),
+            address,
         }
     }
 }
@@ -164,8 +163,8 @@ impl UserJoinedOutput {
 }
 
 impl UserLeftOutput {
-    pub fn new(user_id: Uuid) -> Self {
-        UserLeftOutput { user_id }
+    pub fn new(user_address: AccountAddress) -> Self {
+        UserLeftOutput { user_address }
     }
 }
 

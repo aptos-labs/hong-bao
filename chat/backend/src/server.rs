@@ -1,30 +1,33 @@
-use std::sync::Arc;
-use std::time::Duration;
-
-use futures::{StreamExt, TryStreamExt};
-use log::{error, info};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::UnboundedSender;
-use warp::ws::WebSocket;
-use warp::Filter;
-
 use crate::client::Client;
 use crate::hub::{Hub, HubOptions};
+use aptos_sdk::types::account_address::AccountAddress;
 use crate::proto::InputParcel;
+use futures::{StreamExt, TryStreamExt};
+use aptos_logger::{error, info};
+use std::net::IpAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use warp::ws::WebSocket;
+use warp::Filter;
 
 const MAX_FRAME_SIZE: usize = 1 << 16;
 
 pub struct Server {
-    port: u16,
+    listen_address: String,
+    listen_port: u16,
     hub: Arc<Hub>,
 }
 
 impl Server {
-    pub fn new(port: u16) -> Self {
+    pub fn new(listen_address: String, listen_port: u16) -> Self {
         Server {
-            port,
+            listen_address,
+            listen_port,
             hub: Arc::new(Hub::new(HubOptions {
                 alive_interval: Some(Duration::from_secs(5)),
             })),
@@ -32,7 +35,6 @@ impl Server {
     }
 
     pub async fn run(&self) {
-        println!("{:?}", MAX_FRAME_SIZE);
         let (input_sender, input_receiver) = mpsc::unbounded_channel::<InputParcel>();
         let hub = self.hub.clone();
 
@@ -54,10 +56,15 @@ impl Server {
         let shutdown = async {
             tokio::signal::ctrl_c()
                 .await
-                .expect("failed to install CTRL+C signal handler");
+                .expect("Failed to install CTRL+C signal handler");
         };
-        let (_, serving) =
-            warp::serve(feed).bind_with_graceful_shutdown(([127, 0, 0, 1], self.port), shutdown);
+        let (_, serving) = warp::serve(feed).bind_with_graceful_shutdown(
+            (
+                IpAddr::from_str(&self.listen_address).expect("Listen address was invalid"),
+                self.listen_port,
+            ),
+            shutdown,
+        );
 
         let running_hub = self.hub.run(input_receiver);
 
@@ -75,9 +82,10 @@ impl Server {
         let output_receiver = hub.subscribe();
         let output_receiver = BroadcastStream::new(output_receiver);
         let (ws_sink, ws_stream) = web_socket.split();
-        let client = Client::new();
+        // TODO Use address from request.
+        let client = Client::new(AccountAddress::ZERO);
 
-        info!("Client {} connected", client.id);
+        info!(address=client.address, event="connected");
 
         let reading = client
             .read_input(ws_stream)
@@ -103,7 +111,7 @@ impl Server {
             error!("Client connection error: {}", err);
         }
 
-        hub.on_disconnect(client.id).await;
-        info!("Client {} disconnected", client.id);
+        hub.on_disconnect(client.address).await;
+        info!(address=client.address, event="disconnected");
     }
 }
