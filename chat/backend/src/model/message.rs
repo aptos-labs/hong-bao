@@ -1,7 +1,6 @@
+use crate::model::user::User;
 use chrono::prelude::*;
 use uuid::Uuid;
-
-use crate::model::user::User;
 
 #[derive(Debug, Clone)]
 pub struct Message {

@@ -1,30 +1,29 @@
-use std::time::Duration;
-use std::{error, result};
-
-use futures::stream::SplitStream;
-use futures::{future, Stream, TryStream, TryStreamExt};
-use tokio_stream::StreamExt;
-use uuid::Uuid;
-use warp::filters::ws::WebSocket;
-
 use crate::error::{Error, Result};
 use crate::proto::{InputParcel, OutputParcel};
+use futures::stream::SplitStream;
+use aptos_sdk::types::account_address::AccountAddress;
+use futures::{future, Stream, TryStream, TryStreamExt};
+use std::time::Duration;
+use std::{error, result};
+use tokio_stream::StreamExt;
+use warp::filters::ws::WebSocket;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct Client {
-    pub id: Uuid,
+    // The address of the account of the user.
+    pub address: AccountAddress,
 }
 
 impl Client {
-    pub fn new() -> Self {
-        Client { id: Uuid::new_v4() }
+    pub fn new(address: AccountAddress) -> Self {
+        Client { address }
     }
 
     pub fn read_input(
         &self,
         stream: SplitStream<WebSocket>,
     ) -> impl Stream<Item = Result<InputParcel>> {
-        let client_id = self.id;
+        let client_address = self.address;
         stream
             // Take only text messages
             .take_while(|message| {
@@ -39,7 +38,7 @@ impl Client {
                 Err(err) => Err(Error::System(err.to_string())),
                 Ok(message) => {
                     let input = serde_json::from_str(message.to_str().unwrap())?;
-                    Ok(InputParcel::new(client_id, input))
+                    Ok(InputParcel::new(client_address, input))
                 }
             })
             .throttle(Duration::from_millis(300))
@@ -50,10 +49,10 @@ impl Client {
         S: TryStream<Ok = OutputParcel, Error = E> + Stream<Item = result::Result<OutputParcel, E>>,
         E: error::Error,
     {
-        let client_id = self.id;
+        let client_address = self.address;
         stream
             // Skip irrelevant parcels
-            .try_filter(move |output_parcel| future::ready(output_parcel.client_id == client_id))
+            .try_filter(move |output_parcel| future::ready(output_parcel.client_address == client_address))
             // Serialize to JSON
             .map_ok(|output_parcel| {
                 let data = serde_json::to_string(&output_parcel.output).unwrap();
