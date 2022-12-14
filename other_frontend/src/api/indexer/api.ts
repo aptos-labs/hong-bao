@@ -1,5 +1,6 @@
 import { request, gql } from 'graphql-request'
-import { isEqual } from 'lodash';
+import { removeDuplicates } from '../../helpers';
+import { ChatRoom } from '../types';
 
 const indexerUrl = "https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql";
 
@@ -26,22 +27,6 @@ async function fetchTokensOwnedByAccount(userAccountAddress: string) {
         document: queryDoc,
         variables,
       });
-}
-
-export interface ChatRoom {
-    creator_address: string;
-    collection_name: string;
-}
-
-function removeDuplicates<T>(array: T[]): T[] {
-    const result: T[] = [];
-    for (const item of array) {
-        const found = result.some((value) => isEqual(value, item));
-        if (!found) {
-            result.push(item);
-        }
-    }
-    return result;
 }
 
 export async function getChatRoomsUserIsIn(userAccountAddress: string): Promise<ChatRoom[]> {

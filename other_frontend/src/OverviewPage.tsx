@@ -15,10 +15,19 @@ import {
     Text,
 } from "@chakra-ui/react"
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { useEffect, useState } from "react";
-import { ChatRoom, getChatRoomsUserIsIn } from "./api/indexer";
-import { getAccountAddressPretty } from "./api/ans";
+import { FormEvent, useEffect, useState } from "react";
+import { getChatRoomsUserIsIn } from "./api/indexer/api";
+import { getAccountAddressPretty } from "./api/ans/api";
 import { DisconnectComponent } from "./DisconnectComponent";
+import { getChatRoomKey } from "./helpers";
+import { ChatRoom } from "./api/types";
+import Feed from "./feed/Feed";
+import { Provider, useDispatch, useStore } from "react-redux";
+import userActions from "./user/actions";
+import configureStore from "./store";
+import PostField from "./feed/PostField";
+import { JoinChatRoomRequest } from "./api/chat/types";
+import { SignMessageResponse } from '@aptos-labs/wallet-adapter-core';
 
 export const ChatOverviewPage = () => {
     const [chatRooms, updateChatRooms] = useState<ChatRoom[] | undefined>(
@@ -27,6 +36,16 @@ export const ChatOverviewPage = () => {
 
     // We use the addresses to begin with, and then the ANS names if found.
     const [creatorNames, updateCreatorNames] = useState<string[] | undefined>(undefined);
+
+    // Probably doesn't belong here but here we maintain the chat room connection
+    // objects keyed by chat room ID.
+    const [currentChatRoomKey, updateCurrentChatRoomKey] = useState<string | undefined>(
+        undefined,
+    );
+
+    const [signedMessage, updateSignedMessage] = useState<SignMessageResponse | undefined>(
+        undefined,
+    );
 
     const {
         connect,
@@ -51,86 +70,129 @@ export const ChatOverviewPage = () => {
         updateCreatorNames(newCreatorNames);
     }
 
-    useEffect(() => {
-        console.log("use effect");
-        const updateChatRoomsWrapper = async () => {
-            // Get chat rooms.
-            const chatRooms = await getChatRoomsUserIsIn(account!.address);
+    const handleJoinRoom = (e: FormEvent, chatRoomKey: string) => {
+        e.preventDefault();
 
-            // Set creator names as addresses for now.
-            let currentCreatorNames = chatRooms.map((chatRoom) => chatRoom.creator_address);
-            updateCreatorNames(currentCreatorNames);
-
-            updateChatRooms(chatRooms);
-
-            // Kick off promises to update the creator names based on what we
-            // read from ANS (if a name is found).
-            for (let i = 0; i < chatRooms.length; i++) {
-                updateCreatorNameWrapper(currentCreatorNames[i], i);
+        // In order to connect we need to have had the user sign a message message first.
+        // Once that is done, then we update the current chat room key, which will trigger
+        // an attempt to connect to the room.
+        const signMessageWrapper = async () => {
+            if (signedMessage === undefined) {
+                const response = await signMessage({
+                    message: "hello", nonce: `${Math.floor(Math.random() * 100000)}`
+                });
+                updateSignedMessage(response);
             }
-        }
-        updateChatRoomsWrapper();
-    }, []);
+            updateCurrentChatRoomKey(chatRoomKey);
+        };
 
-    console.log(`Chat rooms: ${JSON.stringify(chatRooms)}`);
-
-    let body;
-    if (chatRooms === undefined) {
-        body = (<Text>Fetching chat rooms</Text>);
-    } else if (chatRooms!.length === 0) {
-        body = (<Text>You are not in any chat rooms!</Text>);
-    } else {
-        let cards = [];
-        let index = 0;
-        for (const chatRoom of chatRooms!) {
-            let createdByString = `Created by ${creatorNames![index]}`;
-            cards.push(
-                <Card key={`${chatRoom.creator_address}_${chatRoom.collection_name}`}>
-                    <CardHeader>
-                        <Heading size='md'>{chatRoom.collection_name}</Heading>
-                    </CardHeader>
-                    <CardBody>
-                        <Text>{createdByString}</Text>
-                    </CardBody>
-                    <CardFooter>
-                        <Button>Join chat room</Button>
-                    </CardFooter>
-                </Card>);
-            index += 1;
-        }
-
-        body = (
-            <Grid
-                templateAreas={`"nav header"
-                  "nav main"
-                  "nav footer"`}
-                gridTemplateRows={'10% 80% 5%'}
-                gridTemplateColumns={'30% 70%'}
-                h='calc(100vh)'
-                gap='4'
-                color='blackAlpha.700'
-                fontWeight='bold'
-            >
-                <GridItem pl='2' bg='red.800' area={'header'} display='flex' mt='2' alignItems='center'>
-                    <Spacer />
-                    <DisconnectComponent />
-                    <Box w={"3%"} />
-                </GridItem>
-                <GridItem pl='2' bg='gray.50' area={'nav'}>
-                    <Box h={"1%"} />
-                    <Heading textAlign={"center"}>Chats</Heading>
-                    <Box h={"2%"} />
-                    {cards}
-                </GridItem>
-                <GridItem pl='2' bg='yellow.50' area={'main'}>
-                    Main
-                </GridItem>
-                <GridItem pl='2' bg='blue.300' area={'footer'}>
-                    Footer
-                </GridItem>
-            </Grid>
-        );
+        signMessageWrapper();
     }
 
-    return body;
-}
+        useEffect(() => {
+            console.log("use effect");
+            const updateChatRoomsWrapper = async () => {
+                // Get chat rooms.
+                const chatRooms = await getChatRoomsUserIsIn(account!.address);
+
+                // Set creator names as addresses for now.
+                let currentCreatorNames = chatRooms.map((chatRoom) => chatRoom.creator_address);
+                updateCreatorNames(currentCreatorNames);
+
+                updateChatRooms(chatRooms);
+
+                // Kick off promises to update the creator names based on what we
+                // read from ANS (if a name is found).
+                for (let i = 0; i < chatRooms.length; i++) {
+                    updateCreatorNameWrapper(currentCreatorNames[i], i);
+                }
+            }
+            updateChatRoomsWrapper();
+        }, []);
+
+        console.log(`Chat rooms: ${JSON.stringify(chatRooms)}`);
+
+        let body;
+        if (chatRooms === undefined) {
+            body = (<Text>Fetching chat rooms</Text>);
+        } else if (chatRooms!.length === 0) {
+            body = (<Text>You are not in any chat rooms!</Text>);
+        } else {
+            let cards = [];
+            let index = 0;
+            for (const chatRoom of chatRooms!) {
+                const createdByString = `Created by ${creatorNames![index]}`;
+                const chatRoomKey = getChatRoomKey(chatRoom);
+                let bg = undefined;
+                if (chatRoomKey === currentChatRoomKey) {
+                    bg = 'gray.200';
+                }
+                cards.push(
+                    <Card onClick={(e) => handleJoinRoom(e, chatRoomKey)} margin={3} bg={bg} key={chatRoomKey}>
+                        <CardHeader>
+                            <Heading size='md'>{chatRoom.collection_name}</Heading>
+                        </CardHeader>
+                        <CardBody>
+                            <Text>{createdByString}</Text>
+                        </CardBody>
+                    </Card>);
+                index += 1;
+            }
+
+            let activeFeed = <Text>Select a chat or start a new conversation</Text>;
+            let footer = <Text>Footer</Text>;
+            if (currentChatRoomKey !== undefined) {
+                const chatRoom = chatRooms!.find((chatRoom) => getChatRoomKey(chatRoom) === currentChatRoomKey)!;
+                const joinChatRoomRequest: JoinChatRoomRequest = {
+                    chat_room_creator: chatRoom.creator_address,
+                    chat_room_name: chatRoom.collection_name,
+                    chat_room_joiner: account!.address,
+                };
+                const store = configureStore("ws://localhost:8888/chat");
+                activeFeed = (
+                    <Provider store={store}>
+                        <Feed />
+                    </Provider>
+                );
+                footer = (
+                    <Provider store={store}>
+                        <PostField user={{ address: account!.address, name: account!.address }} />
+                    </Provider>
+                );
+            }
+
+            body = (
+                <Grid
+                    templateAreas={`"nav header"
+                  "nav main"
+                  "nav footer"`}
+                    gridTemplateRows={'10% 80% 5%'}
+                    gridTemplateColumns={'30% 70%'}
+                    h='calc(100vh)'
+                    gap='4'
+                    color='blackAlpha.700'
+                    fontWeight='bold'
+                >
+                    <GridItem pl='2' bg='red.800' area={'header'} display='flex' mt='2' alignItems='center'>
+                        <Spacer />
+                        <DisconnectComponent />
+                        <Box w={"3%"} />
+                    </GridItem>
+                    <GridItem pl='2' bg='gray.50' area={'nav'}>
+                        <Box h={"1%"} />
+                        <Heading textAlign={"center"}>Chats</Heading>
+                        <Box h={"2%"} />
+                        {cards}
+                    </GridItem>
+                    <GridItem pl='2' bg='yellow.50' area={'main'}>
+                        {activeFeed}
+                    </GridItem>
+                    <GridItem pl='2' bg='blue.300' area={'footer'}>
+                        {footer}
+                    </GridItem>
+                </Grid>
+            );
+        }
+
+        return body;
+    }

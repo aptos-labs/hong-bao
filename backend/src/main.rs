@@ -1,6 +1,6 @@
+use aptos_hong_bao_backend::{args::RootArgs, server::Server};
 use aptos_logger::info;
 use clap::Parser;
-use rusty_chat::{args::RootArgs, server::Server};
 
 #[tokio::main]
 async fn main() {
