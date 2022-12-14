@@ -1,0 +1,33 @@
+[Unit]
+Description=Aptos Hong Bao Backend Container
+Wants=network.target
+After=network-online.target
+RequiresMountsFor=%t/containers
+
+[Service]
+Restart=on-failure
+TimeoutStopSec=30
+
+ExecStartPre=/bin/rm -f %t/%n.pid %t/%n.ctr-id
+ExecStartPre=/usr/bin/docker build -t aptos-hong-bao-backend:latest /home/dport/aptos-hong-bao-backend
+ExecStart=/usr/bin/docker run \
+  --conmon-pidfile %t/%n.pid \
+  --cidfile %t/%n.ctr-id \
+  --cgroups no-conmon \
+  -d \
+  --log-driver journald \
+  --replace \
+  -a stdout \
+  -a stderr \
+  --label "io.containers.autoupdate=registry" \
+  --publish 0.0.0.0:80:80 \
+  --name %N aptos-hong-bao-backend:latest
+
+ExecStop=/usr/bin/docker stop --ignore --cidfile %t/%n.ctr-id -t 45
+ExecStopPost=/usr/bin/docker rm --ignore -f --cidfile %t/%n.ctr-id
+
+PIDFile=%t/%n.pid
+Type=forking
+
+[Install]
+WantedBy=multi-user.target default.target

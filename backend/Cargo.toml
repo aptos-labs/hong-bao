@@ -1,5 +1,5 @@
 [package]
-name = "rusty-chat"
+name = "aptos-hong-bao-backend"
 version = "0.1.0"
 authors = ["Tin Rabzelj <tin@flinect.com>"]
 edition = "2018"
