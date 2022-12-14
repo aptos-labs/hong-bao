@@ -1,10 +1,13 @@
+use crate::api::{handle_rejection, JoinChatRoomRequest};
+use crate::args::RootArgs;
 use crate::auth::ensure_authentication;
 use crate::client::Client;
 use crate::hub::{Hub, HubOptions};
+use crate::indexer::IndexerClient;
 use crate::proto::InputParcel;
-use crate::response::handle_rejection;
 use crate::types::HubId;
 use aptos_logger::{error, info};
+use aptos_sdk::rest_client::Client as ApiClient;
 use aptos_sdk::types::account_address::AccountAddress;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
@@ -15,7 +18,6 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use warp::hyper::StatusCode;
 use warp::ws::WebSocket;
 use warp::Filter;
 
@@ -27,39 +29,49 @@ pub struct Server {
 
     // Map of HubId to Hub (aka chat room).
     hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>,
+
+    // Client for connecting to an Aptos fullnode.
+    api_client: Arc<ApiClient>,
+
+    // Client for connecting to an Aptos indexer
+    indexer_client: Arc<IndexerClient>,
 }
 
 impl Server {
-    pub fn new(listen_address: String, listen_port: u16) -> Self {
+    pub fn new(args: RootArgs) -> Self {
         Server {
-            listen_address,
-            listen_port,
+            listen_address: args.server_args.listen_address,
+            listen_port: args.server_args.listen_port,
             hubs: Arc::new(RwLock::new(HashMap::new())),
-            /*
-            hub: Arc::new(Hash::new(HubOptions {
-                alive_interval: Some(Duration::from_secs(5)),
-            })),
-            */
+            api_client: Arc::new(ApiClient::new(args.fullnode_args.fullnode_url.clone())),
+            indexer_client: Arc::new(IndexerClient::new(args.fullnode_args.fullnode_url.clone())),
         }
     }
 
     pub async fn run(&self) {
         let hubs = self.hubs.clone();
+        let api_client = self.api_client.clone();
+        let indexer_client = self.indexer_client.clone();
 
-        let chat = warp::path!("chat" / AccountAddress / String)
-            .and(ensure_authentication().await.map(|_| {}))
+        let chat = warp::path!("chat")
+            .and(warp::post())
+            .and(warp::body::json())
+            .and(ensure_authentication(api_client.clone(), indexer_client.clone()).await)
             .and(warp::ws())
             .and(warp::any().map(move || hubs.clone()))
             .map(
-                move |chat_room_creator: AccountAddress,
-                      collection_name: String,
-                      _garbage: (),
+                move |request: JoinChatRoomRequest,
+                      account_address: AccountAddress,
                       ws: warp::ws::Ws,
                       hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>| {
-                    let hub_id = HubId::new(chat_room_creator, collection_name);
                     ws.max_frame_size(MAX_FRAME_SIZE)
                         .on_upgrade(move |web_socket| async move {
-                            tokio::spawn(Self::process_client(hubs, hub_id, web_socket));
+                            tokio::spawn(Self::process_client(
+                                hubs,
+                                request,
+                                account_address,
+                                web_socket,
+                            ));
                         })
                 },
             )
@@ -85,9 +97,12 @@ impl Server {
 
     async fn process_client(
         hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>,
-        hub_id: HubId,
+        request: JoinChatRoomRequest,
+        _joiner_account_address: AccountAddress,
         web_socket: WebSocket,
     ) {
+        let hub_id = HubId::new(request.chat_room_creator, request.chat_room_name);
+
         // At this point we have verified that the requester is truly the owner of the
         // account that they say they are. Now we need to check if a Hub already exists
         // for the chat they're trying to join. If not, we'll create one.

@@ -1,23 +1,6 @@
 use aptos_logger::info;
 use clap::Parser;
-use rusty_chat::server::Server;
-
-#[derive(Clone, Debug, Parser)]
-pub struct ServerArgs {
-    /// The address to listen on.
-    #[clap(long, default_value = "0.0.0.0")]
-    listen_address: String,
-
-    /// The port to listen on.
-    #[clap(long, default_value_t = 8888)] // Lucky number.
-    listen_port: u16,
-}
-
-#[derive(Clone, Debug, Parser)]
-pub struct Args {
-    #[clap(flatten)]
-    server_args: ServerArgs,
-}
+use rusty_chat::{args::RootArgs, server::Server};
 
 #[tokio::main]
 async fn main() {
@@ -25,12 +8,9 @@ async fn main() {
         .level(aptos_logger::Level::Info)
         .build();
 
-    let args = Args::parse();
+    let args = RootArgs::parse();
     info!("Running with args: {:#?}", args);
 
-    let server = Server::new(
-        args.server_args.listen_address.clone(),
-        args.server_args.listen_port,
-    );
+    let server = Server::new(args);
     server.run().await;
 }
