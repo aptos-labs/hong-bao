@@ -1,6 +1,6 @@
 use crate::api::{handle_rejection, JoinChatRoomRequest};
 use crate::args::RootArgs;
-use crate::auth::ensure_authentication;
+use crate::auth::authenticate_user;
 use crate::client::Client;
 use crate::hub::{Hub, HubOptions};
 use crate::indexer::IndexerClient;
@@ -54,22 +54,21 @@ impl Server {
         let indexer_client = self.indexer_client.clone();
 
         let chat = warp::path!("chat")
-            .and(warp::post())
-            .and(warp::body::json())
-            .and(ensure_authentication(api_client.clone(), indexer_client.clone()).await)
             .and(warp::ws())
+            .and(warp::any().map(move || api_client.clone()))
+            .and(warp::any().map(move || indexer_client.clone()))
             .and(warp::any().map(move || hubs.clone()))
             .map(
-                move |request: JoinChatRoomRequest,
-                      account_address: AccountAddress,
-                      ws: warp::ws::Ws,
+                move |ws: warp::ws::Ws,
+                        api_client: Arc<ApiClient>,
+                        indexer_client: Arc<IndexerClient>,
                       hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>| {
                     ws.max_frame_size(MAX_FRAME_SIZE)
                         .on_upgrade(move |web_socket| async move {
                             tokio::spawn(Self::process_client(
                                 hubs,
-                                request,
-                                account_address,
+                                api_client,
+                                indexer_client,
                                 web_socket,
                             ));
                         })
@@ -97,11 +96,37 @@ impl Server {
 
     async fn process_client(
         hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>,
-        request: JoinChatRoomRequest,
-        _joiner_account_address: AccountAddress,
+        api_client: Arc<ApiClient>,
+        indexer_client: Arc<IndexerClient>,
         web_socket: WebSocket,
     ) {
-        let hub_id = HubId::new(request.chat_room_creator, request.chat_room_name);
+        println!("hello!!!!");
+        let (ws_sink, mut ws_stream) = web_socket.split();
+        // TODO Use address from request.
+        let client = Client::new(AccountAddress::ZERO);
+
+        let first_message = match ws_stream.try_next().await {
+            Ok(Some(message)) => message,
+            Ok(None) => {
+                error!(event="disconnected_before_first_message");
+                return;
+            }
+            Err(e) => {
+                // TODO: What does this ? do?
+                error!(error = ?e, event="error_receiving_first_message");
+                return;
+            }
+        };
+        println!("first_message: {:?}", first_message);
+
+        // Authenticate the user. Unfortunately it's not easy to do this when the request
+        // is first received: https://websockets.readthedocs.io/en/stable/topics/authentication.html,
+        // so instead we block here waiting for the first message, which must contain
+        // the auth info, before proceeding.
+        // ensure_authentication(api_client.clone(), indexer_client.clone()).await;
+
+        //let hub_id = HubId::new(request.chat_room_creator, request.chat_room_name);
+        let hub_id = HubId::new(AccountAddress::ZERO, "hey".to_string());
 
         // At this point we have verified that the requester is truly the owner of the
         // account that they say they are. Now we need to check if a Hub already exists
@@ -123,9 +148,6 @@ impl Server {
 
         let output_receiver = hub.subscribe();
         let output_receiver = BroadcastStream::new(output_receiver);
-        let (ws_sink, ws_stream) = web_socket.split();
-        // TODO Use address from request.
-        let client = Client::new(AccountAddress::ZERO);
 
         info!(address = client.address, event = "connected");
 

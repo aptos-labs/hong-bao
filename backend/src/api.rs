@@ -30,7 +30,7 @@ pub struct JoinChatRoomRequest {
 }
 
 #[derive(Error, Debug)]
-pub enum ApiErrors {
+pub enum ApiError {
     #[error("User is could submitted an invalid join request: {0:#}")]
     BadRequest(#[from] anyhow::Error),
 
@@ -41,7 +41,7 @@ pub enum ApiErrors {
     DoesNotHoldChatRoomToken(String),
 }
 
-impl warp::reject::Reject for ApiErrors {}
+impl warp::reject::Reject for ApiError {}
 
 #[derive(Serialize, Debug)]
 struct ApiErrorResult {
@@ -60,17 +60,17 @@ pub async fn handle_rejection(
     } else if let Some(_) = err.find::<warp::filters::body::BodyDeserializeError>() {
         code = StatusCode::BAD_REQUEST;
         message = "Invalid Body".to_string();
-    } else if let Some(err) = err.find::<ApiErrors>() {
+    } else if let Some(err) = err.find::<ApiError>() {
         match err {
-            ApiErrors::BadRequest(error_message) => {
+            ApiError::BadRequest(error_message) => {
                 code = StatusCode::BAD_REQUEST;
                 message = format!("{:#}", error_message);
             }
-            ApiErrors::NotRealAccountOwner(error_message) => {
+            ApiError::NotRealAccountOwner(error_message) => {
                 code = StatusCode::UNAUTHORIZED;
                 message = error_message.to_string();
             }
-            ApiErrors::DoesNotHoldChatRoomToken(error_message) => {
+            ApiError::DoesNotHoldChatRoomToken(error_message) => {
                 code = StatusCode::UNAUTHORIZED;
                 message = error_message.to_string();
             }

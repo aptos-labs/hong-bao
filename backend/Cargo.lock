@@ -261,6 +261,30 @@ version = "0.1.0"
 source = "git+https://github.com/aptos-labs/aptos-core?branch=testnet#d7fe6d2f68e6b25bddce8e13546e0b24076f47a5"
 
 [[package]]
+name = "aptos-hong-bao-backend"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aptos-logger",
+ "aptos-sdk",
+ "chrono",
+ "clap 3.2.23",
+ "futures",
+ "graphql_client",
+ "hex",
+ "lazy_static 1.4.0",
+ "regex",
+ "reqwest",
+ "serde 1.0.143",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "uuid",
+ "warp",
+]
+
+[[package]]
 name = "aptos-infallible"
 version = "0.1.0"
 source = "git+https://github.com/aptos-labs/aptos-core?branch=testnet#d7fe6d2f68e6b25bddce8e13546e0b24076f47a5"
@@ -4232,30 +4256,6 @@ name = "rustversion"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97477e48b4cf8603ad5f7aaf897467cf42ab4218a38ef76fb14c2d6773a6d6a8"
-
-[[package]]
-name = "rusty-chat"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aptos-logger",
- "aptos-sdk",
- "chrono",
- "clap 3.2.23",
- "futures",
- "graphql_client",
- "hex",
- "lazy_static 1.4.0",
- "regex",
- "reqwest",
- "serde 1.0.143",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-stream",
- "uuid",
- "warp",
-]
 
 [[package]]
 name = "rusty-fork"

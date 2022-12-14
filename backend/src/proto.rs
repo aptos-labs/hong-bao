@@ -34,10 +34,6 @@ pub enum Output {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "code")]
 pub enum OutputError {
-    #[serde(rename = "name-taken")]
-    NameTaken,
-    #[serde(rename = "invalid-name")]
-    InvalidName,
     #[serde(rename = "not-joined")]
     NotJoined,
     #[serde(rename = "invalid-message-body")]
