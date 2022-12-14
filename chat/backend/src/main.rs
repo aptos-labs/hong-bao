@@ -1,6 +1,6 @@
+use aptos_logger::info;
 use clap::Parser;
 use rusty_chat::server::Server;
-use aptos_logger::info;
 
 #[derive(Clone, Debug, Parser)]
 pub struct ServerArgs {

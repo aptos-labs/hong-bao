@@ -8,13 +8,13 @@ use crate::proto::{
 use aptos_sdk::types::account_address::AccountAddress;
 use chrono::Utc;
 use futures::StreamExt;
-use uuid::Uuid;
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{broadcast, RwLock};
 use tokio::time;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use uuid::Uuid;
 
 const OUTPUT_CHANNEL_SIZE: usize = 16;
 const MAX_MESSAGE_BODY_LENGTH: usize = 256;
@@ -60,8 +60,11 @@ impl Hub {
     pub async fn on_disconnect(&self, client_address: AccountAddress) {
         // Remove user on disconnect
         if self.users.write().await.remove(&client_address).is_some() {
-            self.send_ignored(client_address, Output::UserLeft(UserLeftOutput::new(client_address)))
-                .await;
+            self.send_ignored(
+                client_address,
+                Output::UserLeft(UserLeftOutput::new(client_address)),
+            )
+            .await;
         }
     }
 
@@ -74,7 +77,10 @@ impl Hub {
 
     async fn process_join(&self, client_address: AccountAddress, _input: JoinInput) {
         let user = User::new(client_address);
-        self.users.write().await.insert(client_address, user.clone());
+        self.users
+            .write()
+            .await
+            .insert(client_address, user.clone());
 
         // Report success to user
         let user_output = UserOutput::new(client_address);
@@ -219,9 +225,9 @@ impl Default for Hub {
 
 #[cfg(test)]
 mod tests {
+    use aptos_sdk::types::account_address::AccountAddress;
     use tokio::runtime::Runtime;
     use tokio::sync::mpsc;
-    use aptos_sdk::types::account_address::AccountAddress;
 
     use crate::hub::{Hub, HubOptions};
     use crate::proto::{Input, InputParcel, JoinInput, Output, PostInput};

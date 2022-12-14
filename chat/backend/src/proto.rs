@@ -52,7 +52,10 @@ pub struct InputParcel {
 
 impl InputParcel {
     pub fn new(client_address: AccountAddress, input: Input) -> Self {
-        InputParcel { client_address, input }
+        InputParcel {
+            client_address,
+            input,
+        }
     }
 }
 
@@ -64,7 +67,10 @@ pub struct OutputParcel {
 
 impl OutputParcel {
     pub fn new(client_address: AccountAddress, output: Output) -> Self {
-        OutputParcel { client_address, output }
+        OutputParcel {
+            client_address,
+            output,
+        }
     }
 }
 
@@ -129,9 +135,7 @@ pub struct UserPostedOutput {
 
 impl UserOutput {
     pub fn new(address: AccountAddress) -> Self {
-        UserOutput {
-            address,
-        }
+        UserOutput { address }
     }
 }
 
