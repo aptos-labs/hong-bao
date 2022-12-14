@@ -8,6 +8,7 @@
     "@material-ui/lab": "^4.0.0-alpha.53",
     "@redux-saga/core": "^1.1.3",
     "@redux-saga/types": "^1.1.0",
+    "@testing-library/dom": "^8.19.0",
     "@testing-library/jest-dom": "^5.7.0",
     "@testing-library/react": "^10.0.4",
     "@testing-library/user-event": "^10.3.0",
@@ -23,9 +24,11 @@
     "chroma-js": "^2.1.0",
     "classnames": "^2.2.6",
     "connected-react-router": "^6.8.0",
+    "history": "^4.7.2",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-redux": "^7.2.0",
+    "react-router": "^4.3.1 || ^5.0.0",
     "react-router-dom": "^5.2.0",
     "react-scripts": "3.4.1",
     "redux": "^4.0.5",
@@ -34,6 +37,7 @@
     "timeago.js": "^4.0.2",
     "typescript": "^3.9.2"
   },
+  "homepage": "./",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
