@@ -14,6 +14,7 @@ import { ColorModeSwitcher } from "./ColorModeSwitcher"
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { ConnectComponent } from "./ConnectComponent";
 import { DisconnectComponent } from "./DisconnectComponent";
+import { ChatOverviewPage } from "./OverviewPage";
 
 export const App = () => {
   const {
@@ -58,20 +59,7 @@ export const App = () => {
     );
   } else {
     inner = (
-      <Box textAlign="center" fontSize="xl">
-        <Grid minH="100vh" p={3}>
-          <ColorModeSwitcher justifySelf="flex-end" />
-          <VStack spacing={8}>
-            <Text>
-              Aptos Hong Bao 🧧
-            </Text>
-            <Text>
-              Connected to {wallet!.name}
-            </Text>
-            <DisconnectComponent />
-          </VStack>
-        </Grid>
-      </Box>
+            <ChatOverviewPage />
     );
   }
 
