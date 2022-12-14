@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::proto::{InputParcel, OutputParcel};
-use futures::stream::SplitStream;
 use aptos_sdk::types::account_address::AccountAddress;
+use futures::stream::SplitStream;
 use futures::{future, Stream, TryStream, TryStreamExt};
 use std::time::Duration;
 use std::{error, result};
@@ -52,7 +52,9 @@ impl Client {
         let client_address = self.address;
         stream
             // Skip irrelevant parcels
-            .try_filter(move |output_parcel| future::ready(output_parcel.client_address == client_address))
+            .try_filter(move |output_parcel| {
+                future::ready(output_parcel.client_address == client_address)
+            })
             // Serialize to JSON
             .map_ok(|output_parcel| {
                 let data = serde_json::to_string(&output_parcel.output).unwrap();

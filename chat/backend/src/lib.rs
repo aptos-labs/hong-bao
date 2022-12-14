@@ -4,3 +4,4 @@ pub mod hub;
 pub mod model;
 pub mod proto;
 pub mod server;
+pub mod types;
