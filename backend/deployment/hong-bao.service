@@ -6,7 +6,7 @@ RequiresMountsFor=%t/containers
 
 [Service]
 Restart=on-failure
-TimeoutStopSec=30
+TimeoutStopSec=10
 
 ExecStartPre=/bin/rm -f %t/%n.pid %t/%n.ctr-id
 ExecStartPre=/usr/bin/docker build -t aptos-hong-bao-backend:latest /home/dport/aptos-hong-bao-backend
@@ -19,9 +19,11 @@ ExecStart=/usr/bin/docker run \
   --replace \
   -a stdout \
   -a stderr \
-  --label "io.containers.autoupdate=registry" \
   --publish 0.0.0.0:80:80 \
-  --name %N aptos-hong-bao-backend:latest
+  --name %N aptos-hong-bao-backend:latest \
+    --listen-port 80 \
+    --fullnode-url https://fullnode.testnet.aptoslabs.com \
+    --indexer-url https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql
 
 ExecStop=/usr/bin/docker stop --ignore --cidfile %t/%n.ctr-id -t 45
 ExecStopPost=/usr/bin/docker rm --ignore -f --cidfile %t/%n.ctr-id
