@@ -1,7 +1,9 @@
+pub mod auth;
 pub mod client;
 pub mod error;
 pub mod hub;
 pub mod model;
 pub mod proto;
+pub mod response;
 pub mod server;
 pub mod types;

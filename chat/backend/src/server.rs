@@ -1,6 +1,8 @@
+use crate::auth::ensure_authentication;
 use crate::client::Client;
 use crate::hub::{Hub, HubOptions};
 use crate::proto::InputParcel;
+use crate::response::handle_rejection;
 use crate::types::HubId;
 use aptos_logger::{error, info};
 use aptos_sdk::types::account_address::AccountAddress;
@@ -13,6 +15,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use warp::hyper::StatusCode;
 use warp::ws::WebSocket;
 use warp::Filter;
 
@@ -44,11 +47,13 @@ impl Server {
         let hubs = self.hubs.clone();
 
         let chat = warp::path!("chat" / AccountAddress / String)
+            .and(ensure_authentication().await.map(|_| {}))
             .and(warp::ws())
             .and(warp::any().map(move || hubs.clone()))
             .map(
                 move |chat_room_creator: AccountAddress,
                       collection_name: String,
+                      _garbage: (),
                       ws: warp::ws::Ws,
                       hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>| {
                     let hub_id = HubId::new(chat_room_creator, collection_name);
@@ -57,7 +62,8 @@ impl Server {
                             tokio::spawn(Self::process_client(hubs, hub_id, web_socket));
                         })
                 },
-            );
+            )
+            .recover(handle_rejection);
 
         let shutdown = async {
             tokio::signal::ctrl_c()
