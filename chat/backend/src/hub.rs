@@ -238,7 +238,7 @@ mod tests {
         let (sender, receiver) = mpsc::unbounded_channel();
         let mut subscription = hub.subscribe();
 
-        let mut rt = Runtime::new().unwrap();
+        let rt = Runtime::new().unwrap();
         rt.block_on(async move {
             let case = async {
                 let client_address = AccountAddress::ZERO;

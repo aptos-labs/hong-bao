@@ -1,9 +1,11 @@
+pub mod api;
+pub mod args;
 pub mod auth;
 pub mod client;
 pub mod error;
 pub mod hub;
+pub mod indexer;
 pub mod model;
 pub mod proto;
-pub mod response;
 pub mod server;
 pub mod types;
