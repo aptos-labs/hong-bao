@@ -1,10 +1,8 @@
-# Aptos Chat
+# Into 2023 Hackathon: Hong Bao 🧧
+
+Hello!!
 
 Yanked originally from Rusty Chat, in particular [this branch](https://github.com/getong/rusty-chat/tree/use-tokio-stream) (MIT licensed).
-
-<p align="center">
-  <img src="./cover.jpg"/>
-</p>
 
 A chat app made with Rust and React.
 

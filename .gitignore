@@ -1,3 +1,11 @@
+# Aptos
 .aptos
+
+# Rust
+**/target
+**/*.rs.bk
+**/.idea
+
+# Misc
 *.swp
 .DS_Store
