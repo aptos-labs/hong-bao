@@ -4244,6 +4244,7 @@ dependencies = [
  "clap 3.2.23",
  "futures",
  "graphql_client",
+ "hex",
  "lazy_static 1.4.0",
  "regex",
  "reqwest",
