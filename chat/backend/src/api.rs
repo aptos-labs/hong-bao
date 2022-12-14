@@ -18,10 +18,15 @@ pub struct JoinChatRoomRequest {
     /// This should be a hex string representation of an account ed25519 public key.
     pub chat_room_joiner: String,
 
-    /// Thie payload that the web UI had the wallet sign to prove that the person
+    /// The payload that the web UI had the wallet sign to prove that the person
     /// making the request to join the room actually owns the account corresponding
-    /// to the given public key.
-    pub verification_payload: String, // todo
+    /// to the given public key. When you call window.aptos.signMessage the response
+    /// contains a field called `signature`. This is a hex encoded representation of
+    /// the signed message. That is what this field should be.
+    pub signature: String,
+
+    /// This is similar to the previous field but instead of signature, it's the message.
+    pub message: String,
 }
 
 #[derive(Error, Debug)]
