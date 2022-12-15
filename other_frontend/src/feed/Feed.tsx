@@ -1,12 +1,8 @@
 import { Box, createStyles, Theme } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import React from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppState } from '../store';
-import userActions from '../user/actions';
-import { UserData } from '../user/types';
+import { ChatStateContext } from '../ChatSection';
 import MessageList from './MessageList';
-import PostField from './PostField';
 import UserList from './UserList';
 
 const useStyles = makeStyles((theme: Theme) => createStyles({
@@ -22,26 +18,25 @@ const useStyles = makeStyles((theme: Theme) => createStyles({
     },
 }));
 
-type FeedProps = {
-    user: UserData;
-};
+type FeedProps = {};
 
-const Feed: React.FC<FeedProps> = ({ user }: FeedProps) => {
+const Feed: React.FC<FeedProps> = ({ }: FeedProps) => {
     const classes = useStyles();
-    const { messages, users } = useSelector((state: AppState) => state.feed);
-
-    console.log(`Users: ${JSON.stringify(users)}`);
-    console.log(`Messages: ${JSON.stringify(messages)}`);
 
     return (
-        <Box display="flex" flexDirection="column" flexGrow={1} minHeight={0}>
-            <Box className={classes.content} display="flex" flexGrow={1} minHeight={0} width="100%">
-                <Box className={classes.userList} width={200}>
-                    <UserList users={users}/>
-                </Box>
-                <MessageList messages={messages}/>
-            </Box>
-        </Box>
+        <ChatStateContext.Consumer>
+            {state => {
+                return (
+                    <Box display="flex" flexDirection="column" flexGrow={1} minHeight={0}>
+                        <Box className={classes.content} display="flex" flexGrow={1} minHeight={0} width="100%">
+                            <MessageList messages={state.messages} />
+                            <Box className={classes.userList} width={200}>
+                                <UserList users={state.users} />
+                            </Box>
+                        </Box>
+                    </Box>);
+            }}
+        </ChatStateContext.Consumer>
     );
 };
 

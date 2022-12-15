@@ -1,11 +1,10 @@
-import { Box, Button, createStyles, TextField, Theme, Typography } from '@material-ui/core';
+import { Box, Button, createStyles, TextField, Theme } from '@material-ui/core';
+import { Box as ChakraBox } from '@chakra-ui/react';
 import { makeStyles } from '@material-ui/core/styles';
 import React, { ChangeEvent, FormEvent, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { OutputError } from '../api/chat/types';
-import { AppState } from '../store';
-import { UserData } from '../user/types';
-import feedActions from './actions';
+import { SendJsonMessage } from 'react-use-websocket/dist/lib/types';
+import apiProto from '../api/chat/proto';
+import { ChatStateContext } from '../ChatSection';
 
 const useStyles = makeStyles((theme: Theme) => createStyles({
     messageInput: {
@@ -18,7 +17,6 @@ const useStyles = makeStyles((theme: Theme) => createStyles({
 }));
 
 type PostFieldProps = {
-    user: UserData;
 };
 
 type PostFieldState = {
@@ -26,11 +24,11 @@ type PostFieldState = {
     bodyValid: boolean;
 };
 
-const PostField: React.FC<PostFieldProps> = ({ user }: PostFieldProps) => {
+const PostField: React.FC<PostFieldProps> = ({ }: PostFieldProps) => {
     const classes = useStyles();
     const [state, setState] = useState<PostFieldState>({ body: '', bodyValid: false });
-    const dispatch = useDispatch();
 
+    /*
     const postErrorCode = useSelector((state: AppState) => state.feed.postError);
     let postError = null;
     if (state.body.trim().length !== 0) {
@@ -43,6 +41,7 @@ const PostField: React.FC<PostFieldProps> = ({ user }: PostFieldProps) => {
                 break;
         }
     }
+    */
 
     const isBodyValid = (body: string) => body.length > 0 && body.length <= 256;
 
@@ -55,27 +54,33 @@ const PostField: React.FC<PostFieldProps> = ({ user }: PostFieldProps) => {
         }));
     };
 
-    const handlePost = (e: FormEvent) => {
+    const handlePost = (e: FormEvent, sendJsonMessage: SendJsonMessage) => {
         e.preventDefault();
         const body = state.body.trim();
         if (!isBodyValid(body)) {
             return;
         }
-        dispatch(feedActions.post(body));
         setState((prevState) => ({ body: '', bodyValid: false }));
+        sendJsonMessage(apiProto.post(body));
     };
 
     return (
-        <Box component="form" onSubmit={handlePost} display="flex" justifyContent="center" alignItems="baseline">
-            <TextField className={classes.messageInput} label="Say..." value={state.body}
-                onChange={handleBodyChange}
-                error={!!postError}
-                helperText={postError} />
-            <Button className={classes.postButton} variant="contained" color="primary"
-                disabled={!state.bodyValid} onClick={handlePost}>
-                Send
-            </Button>
-        </Box>
+        <ChatStateContext.Consumer>
+            {chatState => (
+                <ChakraBox w={"95%"} >
+                    <Box component="form" onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)} display="flex" justifyContent="center" alignItems="baseline">
+                        <TextField className={classes.messageInput} label="Say..." value={state.body}
+                            onChange={handleBodyChange}
+                            error={false}
+                            helperText={""} />
+                        <Button className={classes.postButton} variant="contained" color="primary"
+                            disabled={false} onClick={(e) => handlePost(e, chatState.sendJsonMessage)}>
+                            Send
+                        </Button>
+                    </Box>
+                </ChakraBox>
+            )}
+        </ChatStateContext.Consumer>
     );
 }
 

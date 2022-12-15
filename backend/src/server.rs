@@ -9,7 +9,7 @@ use crate::types::HubId;
 use anyhow::Context;
 use aptos_logger::{error, info};
 use aptos_sdk::rest_client::Client as ApiClient;
-use futures::{StreamExt, TryStreamExt, SinkExt};
+use futures::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -44,7 +44,7 @@ impl Server {
             listen_port: args.server_args.listen_port,
             hubs: Arc::new(RwLock::new(HashMap::new())),
             api_client: Arc::new(ApiClient::new(args.fullnode_args.fullnode_url.clone())),
-            indexer_client: Arc::new(IndexerClient::new(args.fullnode_args.fullnode_url.clone())),
+            indexer_client: Arc::new(IndexerClient::new(args.indexer_args.indexer_url.clone())),
         }
     }
 
@@ -186,7 +186,6 @@ impl Server {
         let reading = client
             .read_input(ws_stream)
             .try_for_each(|input_parcel| async {
-                println!("input_parcel: {:#?}", input_parcel);
                 input_sender.send(input_parcel).unwrap();
                 Ok(())
             });

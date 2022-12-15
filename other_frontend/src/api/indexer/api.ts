@@ -21,7 +21,6 @@ query TokensOwnedByAccount($owner_address: String, $offset: Int) {
 async function fetchTokensOwnedByAccount(userAccountAddress: string) {
     // TODO: Do pagination.
     const variables = { "owner_address": userAccountAddress, "offset": 0 };
-    console.log(`variables: ${JSON.stringify(variables)}`);
     return await request({
         url: indexerUrl,
         document: queryDoc,

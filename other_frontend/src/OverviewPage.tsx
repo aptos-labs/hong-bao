@@ -4,10 +4,13 @@ import {
     Card,
     CardBody,
     CardHeader,
+    FormControl,
+    FormLabel,
     Grid,
     GridItem,
     Heading,
     Spacer,
+    Switch,
     Text,
 } from "@chakra-ui/react"
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
@@ -38,18 +41,8 @@ export const ChatOverviewPage = () => {
         undefined,
     );
 
-    let store = undefined;
-
     const {
-        connect,
         account,
-        network,
-        connected,
-        disconnect,
-        wallet,
-        wallets,
-        signAndSubmitTransaction,
-        signTransaction,
         signMessage,
     } = useWallet();
 
@@ -85,8 +78,15 @@ export const ChatOverviewPage = () => {
         signMessageWrapper();
     }
 
+    const [useProdBackend, updateUseProdBackend] = useState<boolean>(false);
+
+    const handleProdSwitch = (_e: FormEvent) => {
+        updateUseProdBackend(currentValue => !currentValue);
+
+        //
+    }
+
     useEffect(() => {
-        console.log("use effect");
         const updateChatRoomsWrapper = async () => {
             // Get chat rooms.
             const chatRooms = await getChatRoomsUserIsIn(account!.address);
@@ -135,8 +135,9 @@ export const ChatOverviewPage = () => {
 
         let chatSection = (<Text>Click on a chat room to join it!</Text>);
         if (currentChatRoomKey !== undefined && signedMessage !== undefined) {
+            const backendUrl = useProdBackend ? "ws://34.86.131.30/chat" : "ws://127.0.0.1:8888/chat";
             chatSection = (
-                <ChatSection chatRooms={chatRooms} currentChatRoomKey={currentChatRoomKey} signedMessage={signedMessage as SignMessageResponse} />
+                <ChatSection key={currentChatRoomKey + backendUrl} backendUrl={backendUrl} chatRooms={chatRooms} currentChatRoomKey={currentChatRoomKey} signedMessage={signedMessage as SignMessageResponse} />
             );
         }
 
@@ -145,14 +146,20 @@ export const ChatOverviewPage = () => {
                 templateAreas={`"nav header"
                   "nav main"
                   "nav footer"`}
-                gridTemplateRows={'10% 80% 5%'}
-                gridTemplateColumns={'30% 70%'}
+                gridTemplateRows={'10% 78% 7%'}
+                gridTemplateColumns={'30% 68%'}
                 h='calc(100vh)'
                 gap='4'
                 color='blackAlpha.700'
                 fontWeight='bold'
             >
                 <GridItem pl='2' bg='red.800' area={'header'} display='flex' mt='2' alignItems='center'>
+                    <FormControl display='flex' alignItems='center'>
+                        <FormLabel htmlFor='email-alerts' mb='0' color={"white"}>
+                            Connect to prod
+                        </FormLabel>
+                        <Switch checked={useProdBackend} onChange={handleProdSwitch} id='email-alerts' />
+                    </FormControl>
                     <Spacer />
                     <DisconnectComponent />
                     <Box w={"3%"} />

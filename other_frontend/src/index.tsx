@@ -1,5 +1,4 @@
 import { ColorModeScript } from "@chakra-ui/react"
-import * as React from "react"
 import * as ReactDOM from "react-dom/client"
 import { App } from "./App"
 import reportWebVitals from "./reportWebVitals"
@@ -28,6 +27,7 @@ root.render(
 // https://stackoverflow.com/questions/60618844/react-hooks-useeffect-is-called-twice-even-if-an-empty-array-is-used-as-an-ar
 root.render(
     <AptosWalletAdapterProvider plugins={wallets} autoConnect={true}>
+    <ColorModeScript />
       <App />
     </AptosWalletAdapterProvider>
 )
