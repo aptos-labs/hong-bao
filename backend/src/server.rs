@@ -6,6 +6,7 @@ use crate::hub::{Hub, HubOptions};
 use crate::indexer::IndexerClient;
 use crate::proto::InputParcel;
 use crate::types::HubId;
+use anyhow::Context;
 use aptos_logger::{error, info};
 use aptos_sdk::rest_client::Client as ApiClient;
 use futures::{StreamExt, TryStreamExt, SinkExt};
@@ -185,6 +186,7 @@ impl Server {
         let reading = client
             .read_input(ws_stream)
             .try_for_each(|input_parcel| async {
+                println!("input_parcel: {:#?}", input_parcel);
                 input_sender.send(input_parcel).unwrap();
                 Ok(())
             });
@@ -202,11 +204,11 @@ impl Server {
         let running_hub = hub.run(input_receiver);
 
         if let Err(err) = tokio::select! {
-            result = reading => result,
-            result = writing => result,
+            result = reading => result.context("Error reading from websocket"),
+            result = writing => result.context("Error writing to websocket"),
             _ = running_hub => Ok(()),
         } {
-            error!("Client connection error: {}", err);
+            error!("Client connection error: {:#}", err);
         }
 
         hub.on_disconnect(client.address).await;

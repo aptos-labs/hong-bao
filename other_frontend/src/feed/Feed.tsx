@@ -8,7 +8,6 @@ import { UserData } from '../user/types';
 import MessageList from './MessageList';
 import PostField from './PostField';
 import UserList from './UserList';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
 
 const useStyles = makeStyles((theme: Theme) => createStyles({
     content: {
@@ -29,8 +28,7 @@ type FeedProps = {
 
 const Feed: React.FC<FeedProps> = ({ user }: FeedProps) => {
     const classes = useStyles();
-
-
+    const { messages, users } = useSelector((state: AppState) => state.feed);
 
     console.log(`Users: ${JSON.stringify(users)}`);
     console.log(`Messages: ${JSON.stringify(messages)}`);

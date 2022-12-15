@@ -17,12 +17,8 @@ import { getAccountAddressPretty } from "./api/ans/api";
 import { DisconnectComponent } from "./DisconnectComponent";
 import { getChatRoomKey } from "./helpers";
 import { ChatRoom } from "./api/types";
-import Feed from "./feed/Feed";
-import { Provider } from "react-redux";
-import configureStore from "./store";
-import PostField from "./feed/PostField";
-import { JoinChatRoomRequest } from "./api/chat/types";
 import { SignMessageResponse } from '@aptos-labs/wallet-adapter-core';
+import { ChatSection } from "./ChatSection";
 
 export const ChatOverviewPage = () => {
     const [chatRooms, updateChatRooms] = useState<ChatRoom[] | undefined>(
@@ -83,6 +79,7 @@ export const ChatOverviewPage = () => {
                 }
             }
             updateCurrentChatRoomKey(chatRoomKey);
+            console.log(`New chat room key: ${chatRoomKey}`);
         };
 
         signMessageWrapper();
@@ -136,30 +133,10 @@ export const ChatOverviewPage = () => {
             index += 1;
         }
 
-        let activeFeed = <Text>Select a chat or start a new conversation</Text>;
-        let footer = <Text>Footer</Text>;
-        if (currentChatRoomKey !== undefined) {
-            const chatRoom = chatRooms!.find((chatRoom) => getChatRoomKey(chatRoom) === currentChatRoomKey)!;
-            const joinChatRoomRequest: JoinChatRoomRequest = {
-                chat_room_creator: chatRoom.creator_address,
-                chat_room_name: chatRoom.collection_name,
-                chat_room_joiner: account!.address,
-                signature: signedMessage!.signature,
-                message: signedMessage!.message,
-            };
-            if (store === undefined) {
-                store = configureStore("ws://localhost:8888/chat", joinChatRoomRequest);
-                console.log("Created store");
-            }
-            activeFeed = (
-                <Provider store={store}>
-                    <Feed user={{address: account!.address, name: account!.address}} />
-                </Provider>
-            );
-            footer = (
-                <Provider store={store}>
-                    <PostField user={{ address: account!.address, name: account!.address }} />
-                </Provider>
+        let chatSection = (<Text>Click on a chat room to join it!</Text>);
+        if (currentChatRoomKey !== undefined && signedMessage !== undefined) {
+            chatSection = (
+                <ChatSection chatRooms={chatRooms} currentChatRoomKey={currentChatRoomKey} signedMessage={signedMessage as SignMessageResponse} />
             );
         }
 
@@ -186,12 +163,7 @@ export const ChatOverviewPage = () => {
                     <Box h={"2%"} />
                     {cards}
                 </GridItem>
-                <GridItem pl='2' bg='yellow.50' area={'main'}>
-                    {activeFeed}
-                </GridItem>
-                <GridItem pl='2' bg='blue.300' area={'footer'}>
-                    {footer}
-                </GridItem>
+                {chatSection}
             </Grid>
         );
     }

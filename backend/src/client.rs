@@ -35,9 +35,11 @@ impl Client {
             })
             // Deserialize JSON messages into proto::Input
             .map(move |message| match message {
-                Err(err) => Err(Error::System(err.to_string())),
+                Err(err) => Err(Error::System(format!("{:#}", err))),
                 Ok(message) => {
+                    println!("Received message: {:?}", message);
                     let input = serde_json::from_str(message.to_str().unwrap())?;
+                    println!("Received input: {:?}", input);
                     Ok(InputParcel::new(client_address, input))
                 }
             })
