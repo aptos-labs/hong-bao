@@ -26,7 +26,7 @@ jobs:
 
     # Install deps and build.
     - run: pnpm install
-    - run: pnpm build
+    - run: CI= pnpm build
 
     # Upload the artifact.
     - uses: actions/upload-pages-artifact@v1

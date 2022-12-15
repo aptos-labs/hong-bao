@@ -24,7 +24,7 @@ sudo systemctl enable hong-bao
 First get an instance (use something like Debian). Set it up:
 ```
 sudo apt update && sudo apt upgrade
-sudo apt install -y rsync binutils cmake curl clang git pkg-config libssl-dev lld libssl1.1 ca-certificates linux-perf procps gdb curl
+sudo apt install -y libcap2-bin rsync binutils cmake curl clang git pkg-config libssl-dev lld libssl1.1 ca-certificates linux-perf procps gdb curl
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source "$HOME/.cargo/env"
 ```
@@ -39,7 +39,13 @@ Next copy in the systemd unit:
 scp deployment/hong-bao-source.service 34.148.77.135:~/hong-bao.service
 ```
 
-Then on the machine:
+Then on the machine, build the binary:
+```
+cd aptos-hong-bao-backend
+cargo build --release
+```
+
+Then start the systemd unit:
 ```
 sudo mv hong-bao.service /etc/systemd/system/
 sudo systemctl start hong-bao

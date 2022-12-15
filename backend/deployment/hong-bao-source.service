@@ -7,8 +7,7 @@ After=network-online.target
 Restart=on-failure
 TimeoutStopSec=10
 
-WorkingDirectory=/home/dport/aptos-hong-bao-backend
-ExecStart=cargo run --release -- \
+ExecStart=/home/dport/aptos-hong-bao-backend/target/release/aptos-hong-bao-backend \
     --listen-port 80 \
     --fullnode-url https://fullnode.testnet.aptoslabs.com \
     --indexer-url https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql
