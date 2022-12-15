@@ -1,8 +1,11 @@
 [package]
-name = 'hongbao'
+name = 'hongbao02'
 version = '1.0.0'
 
 [dependencies.AptosFramework]
 git = 'https://github.com/aptos-labs/aptos-core.git'
 rev = 'main'
 subdir = 'aptos-move/framework/aptos-framework'
+
+[addresses]
+addr = "b078d693856a65401d492f99ca0d6a29a0c5c0e371bc2521570a86e40d95f823"

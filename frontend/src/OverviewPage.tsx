@@ -194,7 +194,7 @@ export const ChatOverviewPage = () => {
         </GridItem>
         <GridItem pl="2" bg="gray.50" area={"nav"}>
           <Box h={"1%"} />
-          <Heading textAlign={"center"}>Chats</Heading>
+          <Heading textAlign={"center"}>Aptos Messenger</Heading>
           <Box h={"2%"} />
           {cards}
         </GridItem>
