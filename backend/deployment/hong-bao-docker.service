@@ -19,7 +19,7 @@ ExecStart=/usr/bin/docker run \
   --replace \
   -a stdout \
   -a stderr \
-  --publish 0.0.0.0:80:80 \
+  --publish 0.0.0.0:80:8888 \
   --name %N aptos-hong-bao-backend:latest \
     --listen-port 80 \
     --fullnode-url https://fullnode.testnet.aptoslabs.com \

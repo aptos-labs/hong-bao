@@ -145,7 +145,7 @@ export const ChatOverviewPage = () => {
     let chatSection = <Text>Click on a chat room to join it!</Text>;
     if (currentChatRoomKey !== undefined && signedMessage !== undefined) {
       const backendUrl = useProdBackend
-        ? "ws://34.86.131.30/chat"
+        ? "wss://hong-bao.dport.me/chat"
         : "ws://127.0.0.1:8888/chat";
       chatSection = (
         <ChatSection
