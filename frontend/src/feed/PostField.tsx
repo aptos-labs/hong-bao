@@ -1,5 +1,5 @@
-import { Box, Button, createStyles, TextField, Theme } from "@material-ui/core";
-import { Box as ChakraBox } from "@chakra-ui/react";
+import { Box, createStyles, TextField, Theme } from "@material-ui/core";
+import { Box as ChakraBox, Button } from "@chakra-ui/react";
 import { makeStyles } from "@material-ui/core/styles";
 import React, { ChangeEvent, FormEvent, useState } from "react";
 import { SendJsonMessage } from "react-use-websocket/dist/lib/types";
@@ -13,7 +13,7 @@ const useStyles = makeStyles((theme: Theme) =>
       flexGrow: 1,
     },
     postButton: {
-      marginLeft: theme.spacing(1),
+      marginLeft: theme.spacing(2),
     },
   })
 );
@@ -88,6 +88,7 @@ const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
               helperText={""}
             />
             <Button
+              bg="white"
               className={classes.postButton}
               variant="contained"
               color="primary"
@@ -96,6 +97,17 @@ const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
             >
               Send
             </Button>
+            <Button
+              bg="#d12d29"
+              style={{ color: '#fdf9aa' }}
+              className={classes.postButton}
+              variant="contained"
+              disabled={false}
+              onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
+            >
+              Gift
+            </Button>
+
           </Box>
         </ChakraBox>
       )}

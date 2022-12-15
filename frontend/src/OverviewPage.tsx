@@ -83,8 +83,6 @@ export const ChatOverviewPage = () => {
 
   const handleProdSwitch = (_e: FormEvent) => {
     updateUseProdBackend((currentValue) => !currentValue);
-
-    //
   };
 
   useEffect(() => {
@@ -142,7 +140,7 @@ export const ChatOverviewPage = () => {
       index += 1;
     }
 
-    let chatSection = <Text>Click on a chat room to join it!</Text>;
+    let chatSection = <Box><Text textAlign={"center"}>Click on a chat room to join it!</Text></Box>;
     if (currentChatRoomKey !== undefined && signedMessage !== undefined) {
       const backendUrl = useProdBackend
         ? "wss://hong-bao.dport.me/chat"
@@ -163,7 +161,7 @@ export const ChatOverviewPage = () => {
         templateAreas={`"nav header"
                   "nav main"
                   "nav footer"`}
-        gridTemplateRows={"10% 78% 7%"}
+        gridTemplateRows={"8% 80% 7%"}
         gridTemplateColumns={"30% 68%"}
         h="calc(100vh)"
         gap="4"
@@ -185,7 +183,6 @@ export const ChatOverviewPage = () => {
             <Switch
               checked={useProdBackend}
               onChange={handleProdSwitch}
-              id="email-alerts"
             />
           </FormControl>
           <Spacer />
@@ -194,7 +191,7 @@ export const ChatOverviewPage = () => {
         </GridItem>
         <GridItem pl="2" bg="gray.50" area={"nav"}>
           <Box h={"1%"} />
-          <Heading textAlign={"center"}>Aptos Messenger</Heading>
+          <Heading textAlign={"center"}>Aptos Chat</Heading>
           <Box h={"2%"} />
           {cards}
         </GridItem>
