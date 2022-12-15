@@ -2,6 +2,7 @@ import { put, StrictEffect, take, takeEvery } from '@redux-saga/core/effects';
 import apiActions from '../api/chat/actions';
 import apiProto from '../api/chat/proto';
 import { ApiActionType, OutputType, ReadApiAction } from '../api/chat/types';
+import userActions from '../user/actions';
 import { JoinedUserAction, UserActionType } from '../user/types';
 import feedActions from './actions';
 import { FeedActionType, PostFeedAction } from './types';
@@ -42,6 +43,7 @@ function* handlePost(action: PostFeedAction): Generator<StrictEffect> {
 function* handleApiRead(action: ReadApiAction): Generator<StrictEffect> {
     switch (action.payload.type) {
         case OutputType.UserPosted:
+            console.log("user posted");
             const message = action.payload.payload.message;
             yield put(feedActions.posted({
                 error: false,
@@ -52,9 +54,12 @@ function* handleApiRead(action: ReadApiAction): Generator<StrictEffect> {
             }));
             break;
         case OutputType.UserJoined:
+            console.log("user joined");
+            yield put(userActions.join(action.payload.payload.user.address));
             yield put(feedActions.userJoined(action.payload.payload.user));
             break;
         case OutputType.UserLeft:
+            console.log("user left");
             yield put(feedActions.userLeft(action.payload.payload.userAddress));
             break;
     }
