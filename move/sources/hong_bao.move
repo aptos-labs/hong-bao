@@ -1,6 +1,6 @@
 // If ever updating this version, also update:
 // - frontend/src/move/constants.ts
-module addr::hongbao02 {
+module addr::hongbao03 {
     use std::string;
     use std::error;
     use std::signer;
@@ -164,13 +164,22 @@ module addr::hongbao02 {
         assert!(gift.remaining_packets > 0, error::invalid_state(E_NO_PACKETS_LEFT));
 
         // Okay, the user is allowed to snatch a packet! Transfer half of the remaining
-        // balance to them.
-        let amount_to_withdraw = coin::value(&gift.remaining_balance) / 2;
+        // balance to them, unless there is only one packet left, in which case we
+        // transfer the rest.
+        let amount_to_withdraw;
+        if (gift.remaining_packets == 1) {
+            amount_to_withdraw = coin::value(&gift.remaining_balance);
+        } else {
+            amount_to_withdraw = coin::value(&gift.remaining_balance) / 2;
+        };
         let coins = coin::extract<AptosCoin>(&mut gift.remaining_balance, amount_to_withdraw);
         coin::deposit<AptosCoin>(snatcher_address, coins);
 
         // Mark the snatcher as having snatched a packet.
         simple_map::remove(&mut gift.allowed_recipients, &snatcher_address);
+
+        // If there are no packets left, remove the Gift from the map.
+        delete_gift(&mut gift_holder.gifts, &gift_id);
     }
 
     public entry fun reclaim_gift(
@@ -200,7 +209,13 @@ module addr::hongbao02 {
 
         // Remove the Gift from the GiftHolder. We have to deconstruct a bit to
         // ultimately destroy the empty Coin safely.
-        let (_key, gift) = simple_map::remove(&mut gift_holder.gifts, &gift_id);
+        delete_gift(&mut gift_holder.gifts, &gift_id);
+    }
+
+    // If the last packet has been snatched, or the Gift has expired, remove it
+    // with this function.
+    fun delete_gift(gifts: &mut simple_map::SimpleMap<string::String, Gift>, gift_id: &string::String) {
+        let (_key, gift) = simple_map::remove(gifts, gift_id);
         let Gift {
             allowed_recipients: _allowed_recipients,
             remaining_packets: _remaining_packets,

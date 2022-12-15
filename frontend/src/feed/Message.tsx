@@ -3,6 +3,7 @@ import React, { HTMLAttributes } from "react";
 import * as timeago from "timeago.js";
 import UserAvatar from "../user/UserAvatar";
 import { MessageData } from "./types";
+import { getShortAddress } from "../helpers";
 
 type MessageProps = {
   message: MessageData;
@@ -14,8 +15,7 @@ const Message: React.FC<MessageProps> = ({
   message,
 }: MessageProps) => {
   const addr = message.user.address;
-  const sender =
-    "0x" + addr.substring(0, 8) + "..." + addr.substring(addr.length - 8);
+  const sender = getShortAddress(addr);
   return (
     <Box className={className} display="flex" p={1}>
       <Box mr={1}>

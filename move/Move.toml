@@ -1,5 +1,5 @@
 [package]
-name = 'hongbao02'
+name = 'hongbao03'
 version = '1.0.0'
 
 [dependencies.AptosFramework]

@@ -22,6 +22,7 @@ type ChatState = {
   users: UserData[];
   user: UserData;
   sendJsonMessage: SendJsonMessage; // This is a function.
+  currentChatRoomKey: string;
 };
 
 type ChatSectionProps = {
@@ -60,6 +61,7 @@ export const ChatSection = ({
       name: account!.address,
     },
     sendJsonMessage,
+    currentChatRoomKey,
   });
 
   useEffect(() => {

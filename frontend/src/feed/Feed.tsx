@@ -38,7 +38,7 @@ const Feed: React.FC<FeedProps> = ({}: FeedProps) => {
               width="100%"
             >
               <MessageList messages={state.messages} />
-              <Box className={classes.userList} width={200}>
+              <Box className={classes.userList} width={275}>
                 <UserList users={state.users} />
               </Box>
             </Box>

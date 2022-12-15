@@ -1,6 +1,6 @@
 import { Box, createStyles, TextField, Theme } from "@material-ui/core";
 import { makeStyles } from "@material-ui/core/styles";
-import React, { ChangeEvent, FormEvent, useState } from "react";
+import React, { ChangeEvent, FormEvent, useContext, useState } from "react";
 import { SendJsonMessage } from "react-use-websocket/dist/lib/types";
 import apiProto from "../api/chat/proto";
 import {
@@ -24,6 +24,8 @@ import {
 import { ChatStateContext } from "../ChatSection";
 import { sendGift } from "../api/move/api";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { niceGold, niceRed } from "../helpers";
+import { getAccountsInChatRoom } from "../api/indexer/api";
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -54,6 +56,8 @@ const PostField: React.FC<PostFieldProps> = ({
     body: "",
     bodyValid: false,
   });
+
+  const chatStateContext = useContext(ChatStateContext);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -110,19 +114,24 @@ const PostField: React.FC<PostFieldProps> = ({
       updateSendingGift(true);
 
       try {
-        const expirationUnixtimeSecs = Math.floor(Date.now() / 1000);
+        // Get the addresses of people with permission to enter the chat room.
+        // As in, find those who own this token.
+        const addresses = await getAccountsInChatRoom(
+          chatStateContext.chatRoom.creator_address,
+          chatStateContext.chatRoom.collection_name
+        );
+
+        // TODO: Make this configurable.
+        const expirationUnixtimeSecs = Math.floor(Date.now() / 1000) + 300; // 5 minutes from now.
         await sendGift(
           signAndSubmitTransaction,
           currentChatRoomKey,
-          [],
+          addresses,
           numberOfPackets!,
           giftAmount! * 10_000_000,
           expirationUnixtimeSecs
         );
         // If we get here, the transaction was committed successfully on chain.
-        // This means we can send a message to the chat server to indicate that
-        // we sent a gift. Or maybe all clients should just be periodically
-        // checking whether there are any gifts available.
         toast({
           title: "Sent gift!",
           description: "Successfully sent gift of " + giftAmount + " APT!",
@@ -149,97 +158,91 @@ const PostField: React.FC<PostFieldProps> = ({
 
   // TODO: Do form validation in the modal properly.
   return (
-    <ChatStateContext.Consumer>
-      {(chatState) => (
-        <>
-          <ChakraBox w={"95%"}>
-            <Box
-              component="form"
-              onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)}
-              display="flex"
-              justifyContent="center"
-              alignItems="baseline"
+    <>
+      <ChakraBox w={"95%"}>
+        <Box
+          component="form"
+          onSubmit={(e) => handlePost(e, chatStateContext.sendJsonMessage)}
+          display="flex"
+          justifyContent="center"
+          alignItems="baseline"
+        >
+          <TextField
+            className={classes.messageInput}
+            label="Say..."
+            value={state.body}
+            onChange={handleBodyChange}
+            error={false}
+            helperText={""}
+          />
+          <Button
+            bg="white"
+            className={classes.postButton}
+            variant="contained"
+            color="primary"
+            disabled={false}
+            onClick={(e) => handlePost(e, chatStateContext.sendJsonMessage)}
+          >
+            Send
+          </Button>
+          <Button
+            bg="#d12d29"
+            style={{ color: "#fdf9aa" }}
+            className={classes.postButton}
+            variant="contained"
+            disabled={false}
+            onClick={onOpen}
+          >
+            Gift
+          </Button>
+        </Box>
+      </ChakraBox>
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Send Gift 🧧</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl paddingBottom={5} isRequired>
+              <NumberInput isRequired>
+                <FormLabel>Amount</FormLabel>
+                <NumberInputField
+                  value={giftAmount}
+                  onChange={(e) => updateGiftAmount(parseInt(e.target.value))}
+                  min={0.001}
+                  max={1000000}
+                  placeholder="$APT"
+                />
+              </NumberInput>
+            </FormControl>
+            <FormControl isRequired>
+              <NumberInput isRequired>
+                <FormLabel>Number of packets</FormLabel>
+                <NumberInputField
+                  value={numberOfPackets}
+                  onChange={(e) =>
+                    updatenumberOfPackets(parseInt(e.target.value))
+                  }
+                  min={1}
+                  max={1000}
+                />
+              </NumberInput>
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              onClick={() => handleSendGift()}
+              mr={3}
+              bg={niceRed}
+              style={{ color: niceGold }}
             >
-              <TextField
-                className={classes.messageInput}
-                label="Say..."
-                value={state.body}
-                onChange={handleBodyChange}
-                error={false}
-                helperText={""}
-              />
-              <Button
-                bg="white"
-                className={classes.postButton}
-                variant="contained"
-                color="primary"
-                disabled={false}
-                onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
-              >
-                Send
-              </Button>
-              <Button
-                bg="#d12d29"
-                style={{ color: "#fdf9aa" }}
-                className={classes.postButton}
-                variant="contained"
-                disabled={false}
-                onClick={onOpen}
-              >
-                Gift
-              </Button>
-            </Box>
-          </ChakraBox>
-          <Modal isOpen={isOpen} onClose={onClose}>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>Send Gift 🧧</ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <FormControl paddingBottom={5} isRequired>
-                  <NumberInput isRequired>
-                    <FormLabel>Amount</FormLabel>
-                    <NumberInputField
-                      value={giftAmount}
-                      onChange={(e) =>
-                        updateGiftAmount(parseInt(e.target.value))
-                      }
-                      min={0.001}
-                      max={1000000}
-                      placeholder="$APT"
-                    />
-                  </NumberInput>
-                </FormControl>
-                <FormControl isRequired>
-                  <NumberInput isRequired>
-                    <FormLabel>Number of packets</FormLabel>
-                    <NumberInputField
-                      value={numberOfPackets}
-                      onChange={(e) =>
-                        updatenumberOfPackets(parseInt(e.target.value))
-                      }
-                      min={1}
-                      max={1000}
-                    />
-                  </NumberInput>
-                </FormControl>
-              </ModalBody>
-              <ModalFooter>
-                <Button
-                  onClick={() => handleSendGift()}
-                  mr={3}
-                  bg="#d12d29"
-                  style={{ color: "#fdf9aa" }}
-                >
-                  {sendingGift ? <Spinner /> : "Send"}
-                </Button>
-                <Button onClick={onClose}>Close</Button>
-              </ModalFooter>
-            </ModalContent>
-          </Modal>
-        </>
-      )}
-    </ChatStateContext.Consumer>
+              {sendingGift ? <Spinner /> : "Send"}
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 };
 
