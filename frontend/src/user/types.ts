@@ -1,8 +1,11 @@
-import { OutputError, OutputResult } from '../api/types';
+import { OutputError, OutputResult } from '../api/chat/types';
 import { MessageData } from '../feed/types';
 
 export type UserData = {
-    id: string;
+    // Account address.
+    address: string;
+
+    // Name, todo think about how to get this, it'll be an ANS lookup.
     name: string;
 };
 
@@ -18,7 +21,7 @@ export enum UserActionType {
 
 export type JoinUserAction = {
     type: UserActionType.Join;
-    payload: { name: string; };
+    payload: { address: string; };
 };
 
 export type JoinedUserAction = {

@@ -8,7 +8,11 @@ type MessageProps = {
     message: MessageData;
 } & HTMLAttributes<HTMLDivElement>;
 
-const Message: React.FC<MessageProps> = ({ className, message }: MessageProps) => (
+// TODO: User user name here instead of address.
+const Message: React.FC<MessageProps> = ({ className, message }: MessageProps) => {
+    const addr = message.user.address;
+    const sender = '0x' + addr.substring(0, 8) + '...' + addr.substring(addr.length - 8);
+    return (
     <Box className={className} display="flex" p={1}>
         <Box mr={1}>
             <UserAvatar user={message.user}/>
@@ -20,10 +24,10 @@ const Message: React.FC<MessageProps> = ({ className, message }: MessageProps) =
                 variant="body2"
                 color="textSecondary"
             >
-                {`${message.user.name} - ${timeago.format(message.createdAt)}`}
+                {`${sender} - ${timeago.format(message.createdAt)}`}
             </Typography>
         </Box>
     </Box>
-);
+);}
 
 export default Message;

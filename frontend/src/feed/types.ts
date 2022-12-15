@@ -1,4 +1,4 @@
-import { OutputError, OutputResult } from '../api/types';
+import { OutputError, OutputResult } from '../api/chat/types';
 import { UserData } from '../user/types';
 
 export type MessageData = {
@@ -53,7 +53,7 @@ export type UserJoinedFeedAction = {
 
 export type UserLeftFeedAction = {
     type: FeedActionType.UserLeft;
-    payload: { userId: string; };
+    payload: { address: string; };
 };
 
 export type FeedAction =

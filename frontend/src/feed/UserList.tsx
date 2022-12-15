@@ -21,7 +21,7 @@ const UserList: React.FC<UserListProps> = ({ className, users }: UserListProps) 
         <Box className={className} p={2}>
             <Typography variant="h5" gutterBottom>Users ({users.length})</Typography>
             <List className={classes.list}>
-                {users.map((user) => <User key={user.id} user={user}/>)}
+                {users.map((user) => <User key={user.address} user={user}/>)}
             </List>
         </Box>
     );
