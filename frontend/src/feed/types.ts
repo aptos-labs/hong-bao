@@ -1,64 +1,64 @@
-import { OutputError, OutputResult } from '../api/chat/types';
-import { UserData } from '../user/types';
+import { OutputError, OutputResult } from "../api/chat/types";
+import { UserData } from "../user/types";
 
 export type MessageData = {
-    id: string;
-    createdAt: Date;
-    user: UserData;
-    body: string;
+  id: string;
+  createdAt: Date;
+  user: UserData;
+  body: string;
 };
 
 export type FeedState = {
-    messages: MessageData[];
-    users: UserData[];
-    postError: OutputError | null;
+  messages: MessageData[];
+  users: UserData[];
+  postError: OutputError | null;
 };
 
 export enum FeedActionType {
-    Load = 'feed/load',
-    Post = 'feed/post',
-    Posted = 'feed/posted',
-    UserJoined = 'feed/user-joined',
-    UserLeft = 'feed/user-left',
+  Load = "feed/load",
+  Post = "feed/post",
+  Posted = "feed/posted",
+  UserJoined = "feed/user-joined",
+  UserLeft = "feed/user-left",
 }
 
 export type LoadFeedAction = {
-    type: FeedActionType.Load;
-    payload: {
-        messages: MessageData[];
-        users: UserData[];
-    };
+  type: FeedActionType.Load;
+  payload: {
+    messages: MessageData[];
+    users: UserData[];
+  };
 };
 
 export type PostFeedAction = {
-    type: FeedActionType.Post;
-    payload: {
-        body: string;
-    };
+  type: FeedActionType.Post;
+  payload: {
+    body: string;
+  };
 };
 
 export type PostedFeedAction = {
-    type: FeedActionType.Posted;
-    payload: OutputResult<PostedFeedActionOk>;
+  type: FeedActionType.Posted;
+  payload: OutputResult<PostedFeedActionOk>;
 };
 
 export type PostedFeedActionOk = {
-    message: MessageData;
+  message: MessageData;
 };
 
 export type UserJoinedFeedAction = {
-    type: FeedActionType.UserJoined;
-    payload: { user: UserData };
+  type: FeedActionType.UserJoined;
+  payload: { user: UserData };
 };
 
 export type UserLeftFeedAction = {
-    type: FeedActionType.UserLeft;
-    payload: { address: string; };
+  type: FeedActionType.UserLeft;
+  payload: { address: string };
 };
 
 export type FeedAction =
-    LoadFeedAction
-    | PostFeedAction
-    | PostedFeedAction
-    | UserJoinedFeedAction
-    | UserLeftFeedAction;
+  | LoadFeedAction
+  | PostFeedAction
+  | PostedFeedAction
+  | UserJoinedFeedAction
+  | UserLeftFeedAction;

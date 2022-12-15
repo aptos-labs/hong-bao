@@ -1,13 +1,8 @@
-import {
-  Button,
-} from "@chakra-ui/react"
+import { Button } from "@chakra-ui/react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 
 export const ConnectComponent = () => {
-  const {
-    connect,
-    wallets,
-  } = useWallet();
+  const { connect, wallets } = useWallet();
 
   // Only Petra right now.
   const handleConnectWallet = () => {
@@ -22,6 +17,12 @@ export const ConnectComponent = () => {
   };
 
   return (
-    <Button onClick={() => { handleConnectWallet() }}>Connect Wallet</Button>
+    <Button
+      onClick={() => {
+        handleConnectWallet();
+      }}
+    >
+      Connect Wallet
+    </Button>
   );
-}
+};

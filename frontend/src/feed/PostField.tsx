@@ -1,34 +1,38 @@
-import { Box, Button, createStyles, TextField, Theme } from '@material-ui/core';
-import { Box as ChakraBox } from '@chakra-ui/react';
-import { makeStyles } from '@material-ui/core/styles';
-import React, { ChangeEvent, FormEvent, useState } from 'react';
-import { SendJsonMessage } from 'react-use-websocket/dist/lib/types';
-import apiProto from '../api/chat/proto';
-import { ChatStateContext } from '../ChatSection';
+import { Box, Button, createStyles, TextField, Theme } from "@material-ui/core";
+import { Box as ChakraBox } from "@chakra-ui/react";
+import { makeStyles } from "@material-ui/core/styles";
+import React, { ChangeEvent, FormEvent, useState } from "react";
+import { SendJsonMessage } from "react-use-websocket/dist/lib/types";
+import apiProto from "../api/chat/proto";
+import { ChatStateContext } from "../ChatSection";
 
-const useStyles = makeStyles((theme: Theme) => createStyles({
+const useStyles = makeStyles((theme: Theme) =>
+  createStyles({
     messageInput: {
-        marginLeft: theme.spacing(2),
-        flexGrow: 1,
+      marginLeft: theme.spacing(2),
+      flexGrow: 1,
     },
     postButton: {
-        marginLeft: theme.spacing(1),
+      marginLeft: theme.spacing(1),
     },
-}));
+  })
+);
 
-type PostFieldProps = {
-};
+type PostFieldProps = {};
 
 type PostFieldState = {
-    body: string;
-    bodyValid: boolean;
+  body: string;
+  bodyValid: boolean;
 };
 
-const PostField: React.FC<PostFieldProps> = ({ }: PostFieldProps) => {
-    const classes = useStyles();
-    const [state, setState] = useState<PostFieldState>({ body: '', bodyValid: false });
+const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
+  const classes = useStyles();
+  const [state, setState] = useState<PostFieldState>({
+    body: "",
+    bodyValid: false,
+  });
 
-    /*
+  /*
     const postErrorCode = useSelector((state: AppState) => state.feed.postError);
     let postError = null;
     if (state.body.trim().length !== 0) {
@@ -43,45 +47,60 @@ const PostField: React.FC<PostFieldProps> = ({ }: PostFieldProps) => {
     }
     */
 
-    const isBodyValid = (body: string) => body.length > 0 && body.length <= 256;
+  const isBodyValid = (body: string) => body.length > 0 && body.length <= 256;
 
-    const handleBodyChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const body = event.target.value;
-        setState((prevState) => ({
-            ...prevState,
-            body,
-            bodyValid: isBodyValid(body.trim()),
-        }));
-    };
+  const handleBodyChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const body = event.target.value;
+    setState((prevState) => ({
+      ...prevState,
+      body,
+      bodyValid: isBodyValid(body.trim()),
+    }));
+  };
 
-    const handlePost = (e: FormEvent, sendJsonMessage: SendJsonMessage) => {
-        e.preventDefault();
-        const body = state.body.trim();
-        if (!isBodyValid(body)) {
-            return;
-        }
-        setState((prevState) => ({ body: '', bodyValid: false }));
-        sendJsonMessage(apiProto.post(body));
-    };
+  const handlePost = (e: FormEvent, sendJsonMessage: SendJsonMessage) => {
+    e.preventDefault();
+    const body = state.body.trim();
+    if (!isBodyValid(body)) {
+      return;
+    }
+    setState((prevState) => ({ body: "", bodyValid: false }));
+    sendJsonMessage(apiProto.post(body));
+  };
 
-    return (
-        <ChatStateContext.Consumer>
-            {chatState => (
-                <ChakraBox w={"95%"} >
-                    <Box component="form" onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)} display="flex" justifyContent="center" alignItems="baseline">
-                        <TextField className={classes.messageInput} label="Say..." value={state.body}
-                            onChange={handleBodyChange}
-                            error={false}
-                            helperText={""} />
-                        <Button className={classes.postButton} variant="contained" color="primary"
-                            disabled={false} onClick={(e) => handlePost(e, chatState.sendJsonMessage)}>
-                            Send
-                        </Button>
-                    </Box>
-                </ChakraBox>
-            )}
-        </ChatStateContext.Consumer>
-    );
-}
+  return (
+    <ChatStateContext.Consumer>
+      {(chatState) => (
+        <ChakraBox w={"95%"}>
+          <Box
+            component="form"
+            onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)}
+            display="flex"
+            justifyContent="center"
+            alignItems="baseline"
+          >
+            <TextField
+              className={classes.messageInput}
+              label="Say..."
+              value={state.body}
+              onChange={handleBodyChange}
+              error={false}
+              helperText={""}
+            />
+            <Button
+              className={classes.postButton}
+              variant="contained"
+              color="primary"
+              disabled={false}
+              onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
+            >
+              Send
+            </Button>
+          </Box>
+        </ChakraBox>
+      )}
+    </ChatStateContext.Consumer>
+  );
+};
 
 export default PostField;

@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from "react";
 import {
   ChakraProvider,
   Box,
@@ -6,8 +6,8 @@ import {
   VStack,
   Grid,
   theme,
-} from "@chakra-ui/react"
-import { ColorModeSwitcher } from "./ColorModeSwitcher"
+} from "@chakra-ui/react";
+import { ColorModeSwitcher } from "./ColorModeSwitcher";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { ConnectComponent } from "./ConnectComponent";
 import { ChatOverviewPage } from "./OverviewPage";
@@ -45,23 +45,15 @@ export const App = () => {
         <Grid minH="100vh" p={3}>
           <ColorModeSwitcher justifySelf="flex-end" />
           <VStack spacing={8}>
-            <Text>
-              Aptos Hong Bao 🧧
-            </Text>
+            <Text>Aptos Hong Bao 🧧</Text>
             <ConnectComponent />
           </VStack>
         </Grid>
       </Box>
     );
   } else {
-    inner = (
-            <ChatOverviewPage />
-    );
+    inner = <ChatOverviewPage />;
   }
 
-  return (
-    <ChakraProvider theme={theme}>
-      {inner}
-    </ChakraProvider>
-  );
-}
+  return <ChakraProvider theme={theme}>{inner}</ChakraProvider>;
+};
