@@ -1,6 +1,6 @@
 // If ever updating this version, also update:
 // - frontend/src/move/constants.ts
-module addr::hongbao03 {
+module addr::hongbao05 {
     use std::string;
     use std::error;
     use std::signer;
@@ -178,8 +178,12 @@ module addr::hongbao03 {
         // Mark the snatcher as having snatched a packet.
         simple_map::remove(&mut gift.allowed_recipients, &snatcher_address);
 
+        gift.remaining_packets = gift.remaining_packets - 1;
+
         // If there are no packets left, remove the Gift from the map.
-        delete_gift(&mut gift_holder.gifts, &gift_id);
+        if (gift.remaining_packets == 0) {
+            delete_gift(&mut gift_holder.gifts, &gift_id);
+        }
     }
 
     public entry fun reclaim_gift(
