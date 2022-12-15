@@ -121,20 +121,17 @@ const PostField: React.FC<PostFieldProps> = ({
           chatStateContext.chatRoom.collection_name
         );
 
-        // Remove our own address.
-        console.log("addresses", addresses);
-        console.log("my address", chatStateContext.user.address);
-
         // TODO: Make this configurable.
         const expirationUnixtimeSecs = Math.floor(Date.now() / 1000) + 300; // 5 minutes from now.
         await sendGift(
           signAndSubmitTransaction,
           currentChatRoomKey,
+          // Remove our own address.
           addresses.filter(
             (address) => address !== chatStateContext.user.address
           ),
           numberOfPackets!,
-          giftAmount! * 10_000_000,
+          giftAmount! * 100_000_000,
           expirationUnixtimeSecs
         );
         // If we get here, the transaction was committed successfully on chain.

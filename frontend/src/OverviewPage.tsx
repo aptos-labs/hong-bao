@@ -260,7 +260,7 @@ export const ChatOverviewPage = () => {
             <Box h={"2%"} />
             <Box overflowY={"auto"}>{cards}</Box>
             <Spacer />
-            <Button onClick={onOpen} margin={2} bg={"gray.200"}>
+            <Button minHeight={50} onClick={onOpen} margin={3} bg={"gray.200"}>
               Create chat
             </Button>
           </GridItem>

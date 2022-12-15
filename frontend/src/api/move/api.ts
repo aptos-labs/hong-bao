@@ -79,7 +79,9 @@ export async function checkForGift(
         out.expirationTimeSecs = gift.value.expiration_time;
         out.remainingBalance = parseInt(gift.value.remaining_balance.value);
         out.remainingPackets = parseInt(gift.value.remaining_packets);
-        out.allowedRecipients = gift.value.allowed_recipients.data;
+        out.allowedRecipients = gift.value.allowed_recipients.data.map(
+          (v: any) => v.key
+        );
         break;
       }
     }

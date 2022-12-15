@@ -15,7 +15,7 @@ export const DisconnectComponent = () => {
         handleDisconnectWallet();
       }}
     >
-      Disconnect Wallet
+      Disconnect
     </Button>
   );
 };

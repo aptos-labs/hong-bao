@@ -145,11 +145,13 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
   const buildModal = (giftData: GiftData) => {
     let body;
     let button = <Button onClick={onClose}>Ok</Button>;
+    console.log("allowed recipients: ", giftData.giftInfo.allowedRecipients);
+    console.log("user address: ", user.address);
     if (giftData.userIsSelf) {
       body = (
         <>
           <Box>{`Amount Remaining: ${
-            giftData.giftInfo.remainingBalance! / 10_000_000
+            giftData.giftInfo.remainingBalance! / 100_000_000
           } APT`}</Box>
           <Box>{`Packets Remaining: ${giftData.giftInfo.remainingPackets}`}</Box>
           <Box>{`Expires: ${getExpirationTimePretty(
@@ -164,12 +166,14 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
             <Box>Gift has expired 😭</Box>
           </>
         );
-      } else if (!giftData.giftInfo.allowedRecipients!.includes(user.address)) {
+      } else if (
+        !giftData.giftInfo.allowedRecipients!.includes(
+          chatStateContext.user.address
+        )
+      ) {
         body = (
           <>
-            <Box>
-              You've already snatched a packet from this gift!
-            </Box>
+            <Box>You've already snatched a packet from this gift!</Box>
           </>
         );
       } else if (giftData.giftInfo.remainingPackets! > 0) {
