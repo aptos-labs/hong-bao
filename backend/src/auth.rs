@@ -2,6 +2,7 @@ use crate::{
     api::{ApiError, JoinChatRoomRequest},
     indexer::IndexerClient,
 };
+use anyhow::Context;
 use aptos_logger::info;
 use aptos_sdk::{
     crypto::{ed25519::Ed25519PublicKey, ValidCryptoMaterialStringExt},
@@ -30,11 +31,13 @@ pub async fn authenticate_user(
     // Build crypto representations of the public key and account address based on the request.
     let public_key =
         Ed25519PublicKey::from_encoded_string(&join_chat_room_request.chat_room_joiner)
+            .context("Failed to create public key from encoded string")
             .map_err(|err| ApiError::BadRequest(err.into()))?;
-    let account_address = AuthenticationKey::ed25519(&public_key).derived_address();
 
     // dummy for testing
     // return Err(ApiError::NotRealAccountOwner("blah".into()));
+
+    let account_address = AuthenticationKey::ed25519(&public_key).derived_address();
 
     /*
     // Confirm that the user actually owns the account they are trying to join as.
@@ -42,12 +45,16 @@ pub async fn authenticate_user(
     // key, resulting in the signature we check below. The verify function here
     // asserts that the signature was created with the private key corresponding to
     let signature_bytes = hex::decode(join_chat_room_request.signature.clone())
+        .context("Failed to decode signature as hex")
         .map_err(|err| ApiError::BadRequest(err.into()))?;
     let signature = Ed25519Signature::try_from(signature_bytes.as_slice())
+        .context("Failed to create signature from bytes")
         .map_err(|err| ApiError::BadRequest(err.into()))?;
     signature
         .verify_arbitrary_msg(join_chat_room_request.message.as_bytes(), &public_key)
+        .context("Failed to verify message")
         .map_err(|err| ApiError::BadRequest(err.into()))?;
+    */
 
     // Confirm that the user has a token on their account that lets them join the chat room.
     let tokens_owned_by_account = indexer_client
@@ -69,7 +76,6 @@ pub async fn authenticate_user(
         ));
     }
 
-    */
     info!(
         room_joiner = join_chat_room_request.chat_room_joiner,
         room_creator = join_chat_room_request.chat_room_creator,

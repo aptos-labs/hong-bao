@@ -3,17 +3,13 @@ import {
   ChakraProvider,
   Box,
   Text,
-  Link,
   VStack,
-  Code,
   Grid,
   theme,
-  Button,
 } from "@chakra-ui/react"
 import { ColorModeSwitcher } from "./ColorModeSwitcher"
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { ConnectComponent } from "./ConnectComponent";
-import { DisconnectComponent } from "./DisconnectComponent";
 import { ChatOverviewPage } from "./OverviewPage";
 
 export const App = () => {
