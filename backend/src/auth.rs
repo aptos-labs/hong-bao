@@ -34,12 +34,8 @@ pub async fn authenticate_user(
             .context("Failed to create public key from encoded string")
             .map_err(|err| ApiError::BadRequest(err.into()))?;
 
-    // dummy for testing
-    // return Err(ApiError::NotRealAccountOwner("blah".into()));
-
     let account_address = AuthenticationKey::ed25519(&public_key).derived_address();
 
-    /*
     // Confirm that the user actually owns the account they are trying to join as.
     // On the client side, the user signed an arbitrary message with their private
     // key, resulting in the signature we check below. The verify function here
@@ -51,10 +47,9 @@ pub async fn authenticate_user(
         .context("Failed to create signature from bytes")
         .map_err(|err| ApiError::BadRequest(err.into()))?;
     signature
-        .verify_arbitrary_msg(join_chat_room_request.message.as_bytes(), &public_key)
+        .verify_arbitrary_msg(join_chat_room_request.full_message.as_bytes(), &public_key)
         .context("Failed to verify message")
         .map_err(|err| ApiError::BadRequest(err.into()))?;
-    */
 
     // Confirm that the user has a token on their account that lets them join the chat room.
     let tokens_owned_by_account = indexer_client

@@ -1,0 +1,17 @@
+[Unit]
+Description=Aptos Hong Bao Backend Container
+Wants=network.target
+After=network-online.target
+
+[Service]
+Restart=on-failure
+TimeoutStopSec=10
+
+WorkingDirectory=/home/dport/aptos-hong-bao-backend
+ExecStart=cargo run --release -- \
+    --listen-port 80 \
+    --fullnode-url https://fullnode.testnet.aptoslabs.com \
+    --indexer-url https://indexer-testnet.staging.gcp.aptosdev.com/v1/graphql
+
+[Install]
+WantedBy=multi-user.target default.target

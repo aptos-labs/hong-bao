@@ -141,5 +141,5 @@ export type JoinChatRoomRequest = {
     signature: string,
 
     /// This is similar to the previous field but instead of signature, it's the message.
-    message: string,
+    full_message: string,
 };

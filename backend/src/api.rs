@@ -25,8 +25,8 @@ pub struct JoinChatRoomRequest {
     /// the signed message. That is what this field should be.
     pub signature: String,
 
-    /// This is similar to the previous field but instead of signature, it's the message.
-    pub message: String,
+    /// This is similar to the previous field but instead of signature, it's the fullMessage.
+    pub full_message: String,
 }
 
 #[derive(Error, Debug)]

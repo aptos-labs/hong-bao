@@ -71,7 +71,7 @@ export const ChatSection = ({ chatRooms, currentChatRoomKey, signedMessage, back
                 chat_room_name: chatRoom.collection_name,
                 chat_room_joiner: account!.publicKey,
                 signature: signedMessage!.signature,
-                message: signedMessage!.message,
+                full_message: signedMessage!.fullMessage,
             };
             console.log(`Sending initial auth request: ${JSON.stringify(joinChatRoomRequest)}`);
             sendJsonMessage(joinChatRoomRequest);
