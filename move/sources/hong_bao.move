@@ -1,7 +1,7 @@
 // If ever updating this version, also update:
-// - frontend/src/move/constants.ts
-module addr::hongbao05 {
-    use std::string;
+// - frontend/src/api/move/constants.ts
+module addr::hongbao11 {
+    use std::string::{Self, String};
     use std::error;
     use std::signer;
     use std::vector;
@@ -9,6 +9,8 @@ module addr::hongbao05 {
     use aptos_framework::timestamp;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin::{Self, Coin};
+    use aptos_token::token::{Self};
+    use aptos_token::token_transfers::{Self};
 
     /// The snatcher tried to snatch a packet from a Gift on an account that
     /// doesn't have a GiftHolder.
@@ -216,8 +218,8 @@ module addr::hongbao05 {
         delete_gift(&mut gift_holder.gifts, &gift_id);
     }
 
-    // If the last packet has been snatched, or the Gift has expired, remove it
-    // with this function.
+    /// If the last packet has been snatched, or the Gift has expired, remove it
+    /// with this function.
     fun delete_gift(gifts: &mut simple_map::SimpleMap<string::String, Gift>, gift_id: &string::String) {
         let (_key, gift) = simple_map::remove(gifts, gift_id);
         let Gift {
@@ -227,6 +229,85 @@ module addr::hongbao05 {
             expiration_time: _expiration_time,
         } = gift;
         coin::destroy_zero(remaining_balance);
+    }
+
+    /// Create a chat room and invite people to it. Concretely this means creating a new
+    /// NFT collection, minting tokens for each person, and then offering them to them.
+    public entry fun create_chat_room(creator: &signer, collection_name: String, addresses: vector<address>) {
+        let description = string::utf8(b"My Awesome Chat Room");
+        let collection_uri = string::utf8(b"Collection URI");
+        // This means that the supply of the token will not be tracked.
+        let maximum_supply = 0;
+        // This variable sets if we want to allow mutation for collection description, uri, and maximum.
+        // Here, we are setting all of them to false, which means that we don't allow mutations to any CollectionData fields.
+        let mutate_setting = vector<bool>[ false, false, false ];
+
+        // Create the nft collection.
+        token::create_collection(creator, collection_name, description, collection_uri, maximum_supply, mutate_setting);
+
+        // Add the creator's own address so they also have the token.
+        vector::push_back(&mut addresses, signer::address_of(creator));
+
+        let index = 0;
+        loop {
+            let token_name = collection_name;
+            string::append(&mut token_name, string::utf8(b" member #"));
+            string::append(&mut token_name, to_string(index));
+            let token_uri = string::utf8(b"Token uri");
+            let token_data_id = token::create_tokendata(
+                creator,
+                collection_name,
+                token_name,
+                string::utf8(b"description"),
+                0,
+                token_uri,
+                signer::address_of(creator),
+                1,
+                0,
+                // This variable sets if we want to allow mutation for token maximum, uri, royalty, description, and properties.
+                // Here we enable mutation for properties by setting the last boolean in the vector to true.
+                token::create_token_mutability_config(
+                    &vector<bool>[ false, false, false, false, true ]
+                ),
+                // We can use property maps to record attributes related to the token.
+                // In this example, we are using it to record the receiver's address.
+                // We will mutate this field to record the user's address
+                // when a user successfully mints a token in the `mint_nft()` function.
+                vector<String>[string::utf8(b"given_to")],
+                vector<vector<u8>>[b""],
+                vector<String>[ string::utf8(b"address") ],
+            );
+            let token_id = token::mint_token(
+                creator,
+                token_data_id,
+                1,
+            );
+            let address = vector::pop_back(&mut addresses);
+            token_transfers::offer(
+                creator,
+                address,
+                token_id,
+                1,
+            );
+            if (vector::length(&addresses) == 0) {
+                break
+            };
+            index = index + 1;
+        };
+    }
+
+    /// Converts a `u64` to its `ascii::String` decimal representation.
+    fun to_string(value: u64): String {
+        if (value == 0) {
+            return string::utf8(b"0")
+        };
+        let buffer = vector::empty<u8>();
+        while (value != 0) {
+            vector::push_back(&mut buffer, ((48 + value % 10) as u8));
+            value = value / 10;
+        };
+        vector::reverse(&mut buffer);
+        string::utf8(buffer)
     }
 
     /*

@@ -1,5 +1,5 @@
 import { moduleAddress, moduleName } from "./constants";
-import { AptosClient } from "aptos";
+import { AptosClient, TokenClient } from "aptos";
 
 const fullnode = "https://fullnode.testnet.aptoslabs.com";
 
@@ -96,6 +96,29 @@ export async function snatchPacket(
     function: `${moduleAddress}::${moduleName}::snatch_packet`,
     type_arguments: [],
     arguments: [gifterAddress, currentChatRoomKey],
+  };
+
+  const pendingTransaction = await signAndSubmitTransaction(transaction);
+
+  const client = new AptosClient(fullnode);
+  await client.waitForTransactionWithResult(pendingTransaction.hash, {
+    checkSuccess: true,
+  });
+}
+
+/// Create a new chat room (NFT collection), mint tokens in it, and offer those tokens to people.
+export async function createChatRoom(
+  signAndSubmitTransaction: (txn: any) => Promise<any>,
+  // New chat room name (collection name).
+  newChatRoomName: string,
+  // Addresses of people to invite (mint tokens and offer them).
+  addressesToInvite: string[]
+) {
+  const transaction = {
+    type: "entry_function_payload",
+    function: `${moduleAddress}::${moduleName}::create_chat_room`,
+    type_arguments: [],
+    arguments: [newChatRoomName, addressesToInvite],
   };
 
   const pendingTransaction = await signAndSubmitTransaction(transaction);

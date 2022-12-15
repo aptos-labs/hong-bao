@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   Box,
+  Button,
   Card,
   CardBody,
   CardHeader,
@@ -9,9 +10,22 @@ import {
   Grid,
   GridItem,
   Heading,
+  Input,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  NumberInput,
+  NumberInputField,
   Spacer,
+  Spinner,
   Switch,
   Text,
+  useDisclosure,
+  useToast,
 } from "@chakra-ui/react";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { FormEvent, useEffect, useState } from "react";
@@ -22,6 +36,7 @@ import { getChatRoomKey } from "./helpers";
 import { ChatRoom } from "./api/types";
 import { SignMessageResponse } from "@aptos-labs/wallet-adapter-core";
 import { ChatSection } from "./ChatSection";
+import { createChatRoom } from "./api/move/api";
 
 export const ChatOverviewPage = () => {
   const [chatRooms, updateChatRooms] = useState<ChatRoom[] | undefined>(
@@ -42,6 +57,54 @@ export const ChatOverviewPage = () => {
   const [signedMessage, updateSignedMessage] = useState<
     SignMessageResponse | undefined
   >(undefined);
+
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
+  const [creatingChatRoom, updateCreatingChatRoom] = useState<boolean>(false);
+  const [newChatRoomName, updateNewChatRoomName] = useState<string | undefined>(
+    undefined
+  );
+  const [newChatRoomAddresses, updateChatRoomAddresses] = useState<
+    string | undefined
+  >(undefined);
+
+  const { signAndSubmitTransaction } = useWallet();
+
+  const handleCreateNewChat = () => {
+    const sendGiftWrapper = async () => {
+      updateCreatingChatRoom(true);
+
+      try {
+        // TODO: Make this configurable.
+        await createChatRoom(
+          signAndSubmitTransaction,
+          newChatRoomName!,
+          newChatRoomAddresses!.replace(" ", "").split(",")
+        );
+        // If we get here, the transaction was committed successfully on chain.
+        toast({
+          title: "Created new chat room!",
+          description: "Successfully created chat room " + newChatRoomName,
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+      } catch (e) {
+        toast({
+          title: "Failed to create new chat room.",
+          description: "Error: " + e,
+          status: "error",
+          duration: 7000,
+          isClosable: true,
+        });
+      }
+
+      onClose();
+      updateCreatingChatRoom(false);
+    };
+
+    sendGiftWrapper();
+  };
 
   const { account, signMessage } = useWallet();
 
@@ -161,43 +224,89 @@ export const ChatOverviewPage = () => {
     }
 
     body = (
-      <Grid
-        templateAreas={`"nav header"
+      <>
+        <Grid
+          templateAreas={`"nav header"
                   "nav main"
                   "nav footer"`}
-        gridTemplateRows={"8% 80% 7%"}
-        gridTemplateColumns={"30% 68%"}
-        h="calc(100vh)"
-        gap="4"
-        color="blackAlpha.700"
-        fontWeight="bold"
-      >
-        <GridItem
-          pl="2"
-          bg="red.800"
-          area={"header"}
-          display="flex"
-          mt="2"
-          alignItems="center"
+          gridTemplateRows={"8% 80% 7%"}
+          gridTemplateColumns={"30% 68%"}
+          h="calc(100vh)"
+          gap="4"
+          color="blackAlpha.700"
+          fontWeight="bold"
         >
-          <FormControl display="flex" alignItems="center">
-            <FormLabel htmlFor="email-alerts" mb="0" color={"white"}>
-              Connect to prod
-            </FormLabel>
-            <Switch checked={useProdBackend} onChange={handleProdSwitch} />
-          </FormControl>
-          <Spacer />
-          <DisconnectComponent />
-          <Box w={"3%"} />
-        </GridItem>
-        <GridItem pl="2" bg="gray.50" area={"nav"}>
-          <Box h={"1%"} />
-          <Heading textAlign={"center"}>Aptos Chat</Heading>
-          <Box h={"2%"} />
-          {cards}
-        </GridItem>
-        {chatSection}
-      </Grid>
+          <GridItem
+            pl="2"
+            bg="red.800"
+            area={"header"}
+            display="flex"
+            mt="2"
+            alignItems="center"
+          >
+            <FormControl display="flex" alignItems="center">
+              <FormLabel htmlFor="email-alerts" mb="0" color={"white"}>
+                Connect to prod
+              </FormLabel>
+              <Switch checked={useProdBackend} onChange={handleProdSwitch} />
+            </FormControl>
+            <Spacer />
+            <DisconnectComponent />
+            <Box w={"3%"} />
+          </GridItem>
+          <GridItem
+            display="flex"
+            flexDirection={"column"}
+            pl="2"
+            bg="gray.50"
+            area={"nav"}
+          >
+            <Box h={"1%"} />
+            <Heading textAlign={"center"}>Aptos Chat</Heading>
+            <Box h={"2%"} />
+            {cards}
+            <Spacer />
+            <Button onClick={onOpen} margin={2} bg={"gray.200"}>
+              Create chat
+            </Button>
+          </GridItem>
+          {chatSection}
+        </Grid>
+        <Modal isOpen={isOpen} onClose={onClose}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>Send Gift 🧧</ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <FormControl paddingBottom={5} isRequired>
+                <FormLabel>Chat name</FormLabel>
+                <Input
+                  value={newChatRoomName}
+                  onChange={(e) => updateNewChatRoomName(e.target.value)}
+                />
+              </FormControl>
+              <FormControl paddingBottom={5} isRequired>
+                <FormLabel>Addresses</FormLabel>
+                <Input
+                  value={newChatRoomAddresses}
+                  onChange={(e) => updateChatRoomAddresses(e.target.value)}
+                  placeholder="Comma separated"
+                />
+              </FormControl>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                colorScheme="blue"
+                onClick={() => handleCreateNewChat()}
+                mr={3}
+              >
+                {creatingChatRoom ? <Spinner /> : "Create"}
+              </Button>
+              <Button onClick={onClose}>Close</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </>
     );
   }
 
