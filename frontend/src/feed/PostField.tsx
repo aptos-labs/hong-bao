@@ -116,17 +116,23 @@ const PostField: React.FC<PostFieldProps> = ({
       try {
         // Get the addresses of people with permission to enter the chat room.
         // As in, find those who own this token.
-        const addresses = await getAccountsInChatRoom(
+        let addresses = await getAccountsInChatRoom(
           chatStateContext.chatRoom.creator_address,
           chatStateContext.chatRoom.collection_name
         );
+
+        // Remove our own address.
+        console.log("addresses", addresses);
+        console.log("my address", chatStateContext.user.address);
 
         // TODO: Make this configurable.
         const expirationUnixtimeSecs = Math.floor(Date.now() / 1000) + 300; // 5 minutes from now.
         await sendGift(
           signAndSubmitTransaction,
           currentChatRoomKey,
-          addresses,
+          addresses.filter(
+            (address) => address !== chatStateContext.user.address
+          ),
           numberOfPackets!,
           giftAmount! * 10_000_000,
           expirationUnixtimeSecs

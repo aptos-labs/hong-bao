@@ -1,5 +1,5 @@
 import { moduleAddress, moduleName } from "./constants";
-import { AptosClient, TokenClient } from "aptos";
+import { AptosClient } from "aptos";
 
 const fullnode = "https://fullnode.testnet.aptoslabs.com";
 
@@ -27,6 +27,7 @@ export async function sendGift(
       expirationUnixtimeSecs,
     ],
   };
+  console.log("transaction", JSON.stringify(transaction));
 
   const pendingTransaction = await signAndSubmitTransaction(transaction);
 
@@ -48,6 +49,9 @@ export type GiftInfo = {
 
   // The number of packets in the gift.
   remainingPackets?: number;
+
+  // Folks who are still allowed to claim packets from the gift.
+  allowedRecipients?: string[];
 };
 
 /// Check whether the account in question is offering a gift to this chat.
@@ -75,6 +79,7 @@ export async function checkForGift(
         out.expirationTimeSecs = gift.value.expiration_time;
         out.remainingBalance = parseInt(gift.value.remaining_balance.value);
         out.remainingPackets = parseInt(gift.value.remaining_packets);
+        out.allowedRecipients = gift.value.allowed_recipients.data;
         break;
       }
     }

@@ -1,6 +1,6 @@
 // If ever updating this version, also update:
 // - frontend/src/api/move/constants.ts
-module addr::hongbao11 {
+module addr::hongbao14 {
     use std::string::{Self, String};
     use std::error;
     use std::signer;
@@ -9,35 +9,38 @@ module addr::hongbao11 {
     use aptos_framework::timestamp;
     use aptos_framework::aptos_coin::AptosCoin;
     use aptos_framework::coin::{Self, Coin};
-    use aptos_token::token::{Self};
+    use aptos_token::token::{Self, TokenId};
     use aptos_token::token_transfers::{Self};
 
     /// The snatcher tried to snatch a packet from a Gift on an account that
     /// doesn't have a GiftHolder.
     const E_NOT_INITIALIZED: u64 = 1;
 
+    /// The creator tried to create a gift with no allowed recipients.
+    const E_NO_RECIPIENTS_SPECIFIED: u64 = 2;
+
     /// The creator tried to create a gift with an expiration time in the past.
-    const E_GIFT_EXPIRED_IN_PAST: u64 = 2;
+    const E_GIFT_EXPIRED_IN_PAST: u64 = 3;
 
     /// The creator tried to create a Gift with a key that is already used.
-    const E_GIFT_ALREADY_EXISTS_WITH_THIS_KEY: u64 = 3;
+    const E_GIFT_ALREADY_EXISTS_WITH_THIS_KEY: u64 = 4;
 
     /// The snatcher tried to snatch a packet from a Gift that has expired.
-    const E_GIFT_EXPIRED: u64 = 4;
+    const E_GIFT_EXPIRED: u64 = 5;
 
     // The snatcher tried to snatch a packet from their own Gift.
-    const E_SNATCHER_IS_GIFTER: u64 = 5;
+    const E_SNATCHER_IS_GIFTER: u64 = 6;
 
     /// The snatcher tried to snatch a packet from a Gift, but they're not in the
     /// allowed recipients list.
-    const E_NOT_ALLOWED_TO_SNATCH: u64 = 6;
+    const E_NOT_ALLOWED_TO_SNATCH: u64 = 7;
 
     /// The snatcher tried to snatch a packet from a Gift, but there are no more
     /// packets left.
-    const E_NO_PACKETS_LEFT: u64 = 7;
+    const E_NO_PACKETS_LEFT: u64 = 8;
 
     /// The creator tried to reclaim a Gift that hasn't expired yet.
-    const E_GIFT_NOT_EXPIRED_YET: u64 = 8;
+    const E_GIFT_NOT_EXPIRED_YET: u64 = 9;
 
     #[test_only]
     /// Used for assertions in tests.
@@ -90,6 +93,9 @@ module addr::hongbao11 {
         expiration_time: u64,
     ) acquires GiftHolder {
         let addr = signer::address_of(account);
+
+        // Make sure there is at least one allowed recipient.
+        assert!(vector::length(&allowed_recipients) > 0, error::invalid_state(E_NOT_ALLOWED_TO_SNATCH));
 
         // Make sure the expiration time is in the future.
         assert!(expiration_time > timestamp::now_seconds(), error::invalid_state(E_GIFT_EXPIRED_IN_PAST));
@@ -245,43 +251,20 @@ module addr::hongbao11 {
         // Create the nft collection.
         token::create_collection(creator, collection_name, description, collection_uri, maximum_supply, mutate_setting);
 
-        // Add the creator's own address so they also have the token.
-        vector::push_back(&mut addresses, signer::address_of(creator));
+        // Mint a token for this account and immediately offer + claim it.
+        let token_id = create_token(creator, collection_name, 0);
+        token_transfers::offer(
+            creator,
+            signer::address_of(creator),
+            token_id,
+            1,
+        );
+        token_transfers::claim(creator, signer::address_of(creator), token_id);
 
-        let index = 0;
+        // Mint tokens and offer them to folks..
+        let index = 1;
         loop {
-            let token_name = collection_name;
-            string::append(&mut token_name, string::utf8(b" member #"));
-            string::append(&mut token_name, to_string(index));
-            let token_uri = string::utf8(b"Token uri");
-            let token_data_id = token::create_tokendata(
-                creator,
-                collection_name,
-                token_name,
-                string::utf8(b"description"),
-                0,
-                token_uri,
-                signer::address_of(creator),
-                1,
-                0,
-                // This variable sets if we want to allow mutation for token maximum, uri, royalty, description, and properties.
-                // Here we enable mutation for properties by setting the last boolean in the vector to true.
-                token::create_token_mutability_config(
-                    &vector<bool>[ false, false, false, false, true ]
-                ),
-                // We can use property maps to record attributes related to the token.
-                // In this example, we are using it to record the receiver's address.
-                // We will mutate this field to record the user's address
-                // when a user successfully mints a token in the `mint_nft()` function.
-                vector<String>[string::utf8(b"given_to")],
-                vector<vector<u8>>[b""],
-                vector<String>[ string::utf8(b"address") ],
-            );
-            let token_id = token::mint_token(
-                creator,
-                token_data_id,
-                1,
-            );
+            let token_id = create_token(creator, collection_name, index);
             let address = vector::pop_back(&mut addresses);
             token_transfers::offer(
                 creator,
@@ -294,6 +277,42 @@ module addr::hongbao11 {
             };
             index = index + 1;
         };
+
+    }
+
+    fun create_token(creator: &signer, collection_name: String, index: u64): TokenId {
+        let token_name = collection_name;
+        string::append(&mut token_name, string::utf8(b" member #"));
+        string::append(&mut token_name, to_string(index));
+        let token_uri = string::utf8(b"Token uri");
+        let token_data_id = token::create_tokendata(
+            creator,
+            collection_name,
+            token_name,
+            string::utf8(b"description"),
+            0,
+            token_uri,
+            signer::address_of(creator),
+            1,
+            0,
+            // This variable sets if we want to allow mutation for token maximum, uri, royalty, description, and properties.
+            // Here we enable mutation for properties by setting the last boolean in the vector to true.
+            token::create_token_mutability_config(
+                &vector<bool>[ false, false, false, false, true ]
+            ),
+            // We can use property maps to record attributes related to the token.
+            // In this example, we are using it to record the receiver's address.
+            // We will mutate this field to record the user's address
+            // when a user successfully mints a token in the `mint_nft()` function.
+            vector<String>[string::utf8(b"given_to")],
+            vector<vector<u8>>[b""],
+            vector<String>[ string::utf8(b"address") ],
+        );
+        token::mint_token(
+            creator,
+            token_data_id,
+            1,
+        )
     }
 
     /// Converts a `u64` to its `ascii::String` decimal representation.

@@ -18,8 +18,6 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
-  NumberInput,
-  NumberInputField,
   Spacer,
   Spinner,
   Switch,
@@ -61,17 +59,13 @@ export const ChatOverviewPage = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const [creatingChatRoom, updateCreatingChatRoom] = useState<boolean>(false);
-  const [newChatRoomName, updateNewChatRoomName] = useState<string | undefined>(
-    undefined
-  );
-  const [newChatRoomAddresses, updateChatRoomAddresses] = useState<
-    string | undefined
-  >(undefined);
+  const [newChatRoomName, updateNewChatRoomName] = useState<string>("");
+  const [newChatRoomAddresses, updateChatRoomAddresses] = useState<string>("");
 
   const { signAndSubmitTransaction } = useWallet();
 
   const handleCreateNewChat = () => {
-    const sendGiftWrapper = async () => {
+    const createNewChatWrapper = async () => {
       updateCreatingChatRoom(true);
 
       try {
@@ -103,7 +97,7 @@ export const ChatOverviewPage = () => {
       updateCreatingChatRoom(false);
     };
 
-    sendGiftWrapper();
+    createNewChatWrapper();
   };
 
   const { account, signMessage } = useWallet();
@@ -164,7 +158,7 @@ export const ChatOverviewPage = () => {
       // Kick off promises to update the creator names based on what we
       // read from ANS (if a name is found).
       for (let i = 0; i < chatRooms.length; i++) {
-        updateCreatorNameWrapper(currentCreatorNames[i], i);
+        // updateCreatorNameWrapper(currentCreatorNames[i], i);
       }
     };
     updateChatRoomsWrapper();
@@ -264,7 +258,7 @@ export const ChatOverviewPage = () => {
             <Box h={"1%"} />
             <Heading textAlign={"center"}>Aptos Chat</Heading>
             <Box h={"2%"} />
-            {cards}
+            <Box overflowY={"auto"}>{cards}</Box>
             <Spacer />
             <Button onClick={onOpen} margin={2} bg={"gray.200"}>
               Create chat

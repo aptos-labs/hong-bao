@@ -41,9 +41,6 @@ type GiftData = {
 const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
   const chatStateContext = useContext(ChatStateContext);
 
-  console.log(
-    `user address: ${user.address}} and ${chatStateContext.user.address}`
-  );
   const [giftData, updateGiftData] = useState<GiftData>({
     giftInfo: { offering: false, expirationTimeSecs: 0 },
     userIsSelf: `0x${user.address}` === chatStateContext.user.address,
@@ -82,7 +79,6 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
       updateSnatchingPacket(true);
 
       try {
-        const expirationUnixtimeSecs = Math.floor(Date.now() / 1000) + 300; // 5 minutes from now.
         await snatchPacket(
           signAndSubmitTransaction,
           user.address,
@@ -121,11 +117,23 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
       nameComponent = <Link onClick={onOpen}>Your Gift</Link>;
     } else if (giftData.giftInfo.expirationTimeSecs < Date.now() / 1000) {
       nameComponent = (
-        <Button width={squareSize} height={squareSize} bg={grey[300]} mr={1} />
+        <Button
+          onClick={onOpen}
+          width={squareSize}
+          height={squareSize}
+          bg={grey[300]}
+          mr={1}
+        />
       );
     } else {
       nameComponent = (
-        <Button width={squareSize} height={squareSize} bg={niceRed} mr={1} />
+        <Button
+          onClick={onOpen}
+          width={squareSize}
+          height={squareSize}
+          bg={niceRed}
+          mr={1}
+        />
       );
     }
   } else {
@@ -136,7 +144,7 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
 
   const buildModal = (giftData: GiftData) => {
     let body;
-    let extraButton;
+    let button = <Button onClick={onClose}>Ok</Button>;
     if (giftData.userIsSelf) {
       body = (
         <>
@@ -156,6 +164,14 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
             <Box>Gift has expired 😭</Box>
           </>
         );
+      } else if (!giftData.giftInfo.allowedRecipients!.includes(user.address)) {
+        body = (
+          <>
+            <Box>
+              You've already snatched a packet from this gift!
+            </Box>
+          </>
+        );
       } else if (giftData.giftInfo.remainingPackets! > 0) {
         body = (
           <>
@@ -165,14 +181,16 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
             </Box>
           </>
         );
-        <Button
-          onClick={() => handleSnatchPacket()}
-          mr={3}
-          bg={niceRed}
-          style={{ color: niceGold }}
-        >
-          {snatchingPacket ? <Spinner /> : "Snatch!"}
-        </Button>;
+        button = (
+          <Button
+            onClick={() => handleSnatchPacket()}
+            mr={3}
+            bg={niceRed}
+            style={{ color: niceGold }}
+          >
+            {snatchingPacket ? <Spinner /> : "Snatch!"}
+          </Button>
+        );
       }
     }
     return (
@@ -182,9 +200,7 @@ const User: React.FC<UserProps> = ({ className, user }: UserProps) => {
           <ModalHeader>Your Gift 🧧</ModalHeader>
           <ModalCloseButton />
           <ModalBody>{body}</ModalBody>
-          <ModalFooter>
-            <Button onClick={onClose}>Ok</Button>
-          </ModalFooter>
+          <ModalFooter>{button}</ModalFooter>
         </ModalContent>
       </Modal>
     );
