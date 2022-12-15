@@ -1,10 +1,29 @@
 import { Box, createStyles, TextField, Theme } from "@material-ui/core";
-import { Box as ChakraBox, Button } from "@chakra-ui/react";
 import { makeStyles } from "@material-ui/core/styles";
 import React, { ChangeEvent, FormEvent, useState } from "react";
 import { SendJsonMessage } from "react-use-websocket/dist/lib/types";
 import apiProto from "../api/chat/proto";
+import {
+  Box as ChakraBox,
+  Button,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  useDisclosure,
+  FormLabel,
+  FormControl,
+  NumberInput,
+  NumberInputField,
+  Spinner,
+  useToast,
+} from "@chakra-ui/react";
 import { ChatStateContext } from "../ChatSection";
+import { sendGift } from "../api/move/api";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 
 const useStyles = makeStyles((theme: Theme) =>
   createStyles({
@@ -18,19 +37,27 @@ const useStyles = makeStyles((theme: Theme) =>
   })
 );
 
-type PostFieldProps = {};
+type PostFieldProps = {
+  currentChatRoomKey: string;
+};
 
 type PostFieldState = {
   body: string;
   bodyValid: boolean;
 };
 
-const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
+const PostField: React.FC<PostFieldProps> = ({
+  currentChatRoomKey,
+}: PostFieldProps) => {
   const classes = useStyles();
   const [state, setState] = useState<PostFieldState>({
     body: "",
     bodyValid: false,
   });
+
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
+  const toast = useToast();
 
   /*
     const postErrorCode = useSelector((state: AppState) => state.feed.postError);
@@ -45,7 +72,9 @@ const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
                 break;
         }
     }
-    */
+  */
+
+  const { signAndSubmitTransaction } = useWallet();
 
   const isBodyValid = (body: string) => body.length > 0 && body.length <= 256;
 
@@ -64,52 +93,151 @@ const PostField: React.FC<PostFieldProps> = ({}: PostFieldProps) => {
     if (!isBodyValid(body)) {
       return;
     }
-    setState((prevState) => ({ body: "", bodyValid: false }));
+    setState((_prevState) => ({ body: "", bodyValid: false }));
     sendJsonMessage(apiProto.post(body));
   };
 
+  const [giftAmount, updateGiftAmount] = useState<number | undefined>(
+    undefined
+  );
+  const [numberOfPackets, updatenumberOfPackets] = useState<number | undefined>(
+    undefined
+  );
+  const [sendingGift, updateSendingGift] = useState<boolean>(false);
+
+  const handleSendGift = () => {
+    const sendGiftWrapper = async () => {
+      updateSendingGift(true);
+
+      try {
+        const expirationUnixtimeSecs = Math.floor(Date.now() / 1000);
+        await sendGift(
+          signAndSubmitTransaction,
+          currentChatRoomKey,
+          [],
+          numberOfPackets!,
+          giftAmount! * 10_000_000,
+          expirationUnixtimeSecs
+        );
+        // If we get here, the transaction was committed successfully on chain.
+        // This means we can send a message to the chat server to indicate that
+        // we sent a gift. Or maybe all clients should just be periodically
+        // checking whether there are any gifts available.
+        toast({
+          title: "Sent gift!",
+          description: "Successfully sent gift of " + giftAmount + " APT!",
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+        });
+      } catch (e) {
+        toast({
+          title: "Failed to send gift.",
+          description: "Error: " + e,
+          status: "error",
+          duration: 7000,
+          isClosable: true,
+        });
+      }
+
+      onClose();
+      updateSendingGift(false);
+    };
+
+    sendGiftWrapper();
+  };
+
+  // TODO: Do form validation in the modal properly.
   return (
     <ChatStateContext.Consumer>
       {(chatState) => (
-        <ChakraBox w={"95%"}>
-          <Box
-            component="form"
-            onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)}
-            display="flex"
-            justifyContent="center"
-            alignItems="baseline"
-          >
-            <TextField
-              className={classes.messageInput}
-              label="Say..."
-              value={state.body}
-              onChange={handleBodyChange}
-              error={false}
-              helperText={""}
-            />
-            <Button
-              bg="white"
-              className={classes.postButton}
-              variant="contained"
-              color="primary"
-              disabled={false}
-              onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
+        <>
+          <ChakraBox w={"95%"}>
+            <Box
+              component="form"
+              onSubmit={(e) => handlePost(e, chatState.sendJsonMessage)}
+              display="flex"
+              justifyContent="center"
+              alignItems="baseline"
             >
-              Send
-            </Button>
-            <Button
-              bg="#d12d29"
-              style={{ color: '#fdf9aa' }}
-              className={classes.postButton}
-              variant="contained"
-              disabled={false}
-              onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
-            >
-              Gift
-            </Button>
-
-          </Box>
-        </ChakraBox>
+              <TextField
+                className={classes.messageInput}
+                label="Say..."
+                value={state.body}
+                onChange={handleBodyChange}
+                error={false}
+                helperText={""}
+              />
+              <Button
+                bg="white"
+                className={classes.postButton}
+                variant="contained"
+                color="primary"
+                disabled={false}
+                onClick={(e) => handlePost(e, chatState.sendJsonMessage)}
+              >
+                Send
+              </Button>
+              <Button
+                bg="#d12d29"
+                style={{ color: "#fdf9aa" }}
+                className={classes.postButton}
+                variant="contained"
+                disabled={false}
+                onClick={onOpen}
+              >
+                Gift
+              </Button>
+            </Box>
+          </ChakraBox>
+          <Modal isOpen={isOpen} onClose={onClose}>
+            <ModalOverlay />
+            <ModalContent>
+              <ModalHeader>Send Gift 🧧</ModalHeader>
+              <ModalCloseButton />
+              <ModalBody>
+                <FormControl paddingBottom={5} isRequired>
+                  <NumberInput isRequired>
+                    <FormLabel>Amount</FormLabel>
+                    <NumberInputField
+                      value={giftAmount}
+                      onChange={(e) =>
+                        updateGiftAmount(parseInt(e.target.value))
+                      }
+                      min={0.001}
+                      max={1000000}
+                      placeholder="$APT"
+                    />
+                  </NumberInput>
+                </FormControl>
+                <FormControl isRequired>
+                  <NumberInput isRequired>
+                    <FormLabel>Number of packets</FormLabel>
+                    <NumberInputField
+                      value={numberOfPackets}
+                      onChange={(e) =>
+                        updatenumberOfPackets(parseInt(e.target.value))
+                      }
+                      min={1}
+                      max={1000}
+                    />
+                  </NumberInput>
+                </FormControl>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  onClick={() => handleSendGift()}
+                  mr={3}
+                  bg="#d12d29"
+                  style={{ color: "#fdf9aa" }}
+                >
+                  {sendingGift ? <Spinner /> : "Send"}
+                </Button>
+                <Button onClick={onClose}>Close</Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
+        </>
       )}
     </ChatStateContext.Consumer>
   );

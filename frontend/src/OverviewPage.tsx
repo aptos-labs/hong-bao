@@ -140,7 +140,11 @@ export const ChatOverviewPage = () => {
       index += 1;
     }
 
-    let chatSection = <Box><Text textAlign={"center"}>Click on a chat room to join it!</Text></Box>;
+    let chatSection = (
+      <Box>
+        <Text textAlign={"center"}>Click on a chat room to join it!</Text>
+      </Box>
+    );
     if (currentChatRoomKey !== undefined && signedMessage !== undefined) {
       const backendUrl = useProdBackend
         ? "wss://hong-bao.dport.me/chat"
@@ -180,10 +184,7 @@ export const ChatOverviewPage = () => {
             <FormLabel htmlFor="email-alerts" mb="0" color={"white"}>
               Connect to prod
             </FormLabel>
-            <Switch
-              checked={useProdBackend}
-              onChange={handleProdSwitch}
-            />
+            <Switch checked={useProdBackend} onChange={handleProdSwitch} />
           </FormControl>
           <Spacer />
           <DisconnectComponent />
