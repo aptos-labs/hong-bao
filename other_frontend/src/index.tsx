@@ -13,13 +13,23 @@ const container = document.getElementById("root");
 if (!container) throw new Error('Failed to find the root element');
 const root = ReactDOM.createRoot(container);
 
+/*
 root.render(
   <React.StrictMode>
     <ColorModeScript />
     <AptosWalletAdapterProvider plugins={wallets} autoConnect={true}>
       <App />
     </AptosWalletAdapterProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
+)
+*/
+
+// TODO: Fix the double useEffect problem in ChatSection and then use the above code.
+// https://stackoverflow.com/questions/60618844/react-hooks-useeffect-is-called-twice-even-if-an-empty-array-is-used-as-an-ar
+root.render(
+    <AptosWalletAdapterProvider plugins={wallets} autoConnect={true}>
+      <App />
+    </AptosWalletAdapterProvider>
 )
 
 // If you want your app to work offline and load faster, you can change
