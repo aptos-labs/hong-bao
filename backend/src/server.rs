@@ -8,8 +8,7 @@ use crate::proto::InputParcel;
 use crate::types::HubId;
 use aptos_logger::{error, info};
 use aptos_sdk::rest_client::Client as ApiClient;
-use aptos_sdk::types::account_address::AccountAddress;
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, SinkExt};
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::str::FromStr;
@@ -60,8 +59,8 @@ impl Server {
             .and(warp::any().map(move || hubs.clone()))
             .map(
                 move |ws: warp::ws::Ws,
-                        api_client: Arc<ApiClient>,
-                        indexer_client: Arc<IndexerClient>,
+                      api_client: Arc<ApiClient>,
+                      indexer_client: Arc<IndexerClient>,
                       hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>| {
                     ws.max_frame_size(MAX_FRAME_SIZE)
                         .on_upgrade(move |web_socket| async move {
@@ -96,37 +95,67 @@ impl Server {
 
     async fn process_client(
         hubs: Arc<RwLock<HashMap<HubId, Arc<Hub>>>>,
-        api_client: Arc<ApiClient>,
+        _api_client: Arc<ApiClient>,
         indexer_client: Arc<IndexerClient>,
-        web_socket: WebSocket,
+        mut web_socket: WebSocket,
     ) {
-        println!("hello!!!!");
-        let (ws_sink, mut ws_stream) = web_socket.split();
-        // TODO Use address from request.
-        let client = Client::new(AccountAddress::ZERO);
+        // Here we authenticate the user. It'd be more ideal to do this when the request // is first received, and therefore before we get to this point with an established,
+        // websocket, but unfortunately it's not easy to do this when the request is first
+        // received: https://websockets.readthedocs.io/en/stable/topics/authentication.html,
+        // so instead we block here waiting for the first message, which must contain
+        // the auth info, before proceeding.
 
-        let first_message = match ws_stream.try_next().await {
+        // Wait for the first message.
+        let first_message = match web_socket.try_next().await {
             Ok(Some(message)) => message,
             Ok(None) => {
-                error!(event="disconnected_before_first_message");
+                error!(event = "disconnected_before_first_message");
+                let _ = web_socket.close().await;
                 return;
             }
             Err(e) => {
-                // TODO: What does this ? do?
                 error!(error = ?e, event="error_receiving_first_message");
                 return;
             }
         };
-        println!("first_message: {:?}", first_message);
 
-        // Authenticate the user. Unfortunately it's not easy to do this when the request
-        // is first received: https://websockets.readthedocs.io/en/stable/topics/authentication.html,
-        // so instead we block here waiting for the first message, which must contain
-        // the auth info, before proceeding.
-        // ensure_authentication(api_client.clone(), indexer_client.clone()).await;
+        // Assert that we can deserialize the first message as a JoinChatRoomRequest.
+        if !first_message.is_text() {
+            error!(event = "first_message_not_text");
+            let _ = web_socket.close().await;
+            return;
+        }
+        let first_message = match first_message.to_str() {
+            Ok(message) => message,
+            Err(e) => {
+                let _ = web_socket.close().await;
+                error!(error = ?e, event="error_converting_first_message_to_str");
+                return;
+            }
+        };
+        let request: JoinChatRoomRequest = match serde_json::from_str(&first_message) {
+            Ok(message) => message,
+            Err(e) => {
+                let _ = web_socket.close().await;
+                error!(error = ?e, event="error_deserializing_first_message");
+                return;
+            }
+        };
 
-        //let hub_id = HubId::new(request.chat_room_creator, request.chat_room_name);
-        let hub_id = HubId::new(AccountAddress::ZERO, "hey".to_string());
+        // Finally, authenticate the request.
+        let user_account_address = match authenticate_user(indexer_client.clone(), &request).await {
+            Ok(address) => address,
+            Err(e) => {
+                let _ = web_socket.close().await;
+                error!(error = ?e, event="user_forbidden");
+                return;
+            }
+        };
+
+        // TODO Use address from request.
+        let client = Client::new(user_account_address);
+
+        let hub_id = HubId::new(request.chat_room_creator, request.chat_room_name);
 
         // At this point we have verified that the requester is truly the owner of the
         // account that they say they are. Now we need to check if a Hub already exists
@@ -143,6 +172,8 @@ impl Server {
                 hub
             }
         };
+
+        let (ws_sink, ws_stream) = web_socket.split();
 
         let (input_sender, input_receiver) = mpsc::unbounded_channel::<InputParcel>();
 

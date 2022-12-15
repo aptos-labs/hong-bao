@@ -1,11 +1,14 @@
 import { Box, createStyles, Theme } from '@material-ui/core';
 import { makeStyles } from '@material-ui/core/styles';
 import React from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { AppState } from '../store';
+import userActions from '../user/actions';
+import { UserData } from '../user/types';
 import MessageList from './MessageList';
 import PostField from './PostField';
 import UserList from './UserList';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
 
 const useStyles = makeStyles((theme: Theme) => createStyles({
     content: {
@@ -20,17 +23,17 @@ const useStyles = makeStyles((theme: Theme) => createStyles({
     },
 }));
 
-const Feed: React.FC = () => {
-    const classes = useStyles();
-    const user = useSelector((state: AppState) => state.user.currentUser);
-    const { messages, users } = useSelector((state: AppState) => state.feed);
+type FeedProps = {
+    user: UserData;
+};
 
-    let field;
-    if (user) {
-        field = <PostField user={user}/>;
-    } else {
-        field = <Box p={2}>You are not logged in.</Box>;
-    }
+const Feed: React.FC<FeedProps> = ({ user }: FeedProps) => {
+    const classes = useStyles();
+
+
+
+    console.log(`Users: ${JSON.stringify(users)}`);
+    console.log(`Messages: ${JSON.stringify(messages)}`);
 
     return (
         <Box display="flex" flexDirection="column" flexGrow={1} minHeight={0}>
@@ -39,9 +42,6 @@ const Feed: React.FC = () => {
                     <UserList users={users}/>
                 </Box>
                 <MessageList messages={messages}/>
-            </Box>
-            <Box p={2}>
-                {field}
             </Box>
         </Box>
     );

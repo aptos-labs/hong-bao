@@ -1,16 +1,12 @@
 import * as React from "react"
 import {
     Box,
-    Button,
     Card,
     CardBody,
-    CardFooter,
     CardHeader,
-    Flex,
     Grid,
     GridItem,
     Heading,
-    SimpleGrid,
     Spacer,
     Text,
 } from "@chakra-ui/react"
@@ -22,8 +18,7 @@ import { DisconnectComponent } from "./DisconnectComponent";
 import { getChatRoomKey } from "./helpers";
 import { ChatRoom } from "./api/types";
 import Feed from "./feed/Feed";
-import { Provider, useDispatch, useStore } from "react-redux";
-import userActions from "./user/actions";
+import { Provider } from "react-redux";
 import configureStore from "./store";
 import PostField from "./feed/PostField";
 import { JoinChatRoomRequest } from "./api/chat/types";
@@ -46,6 +41,8 @@ export const ChatOverviewPage = () => {
     const [signedMessage, updateSignedMessage] = useState<SignMessageResponse | undefined>(
         undefined,
     );
+
+    let store = undefined;
 
     const {
         connect,
@@ -79,9 +76,11 @@ export const ChatOverviewPage = () => {
         const signMessageWrapper = async () => {
             if (signedMessage === undefined) {
                 const response = await signMessage({
-                    message: "hello", nonce: `${Math.floor(Math.random() * 100000)}`
+                    message: "What is this for you ask? Signing this message allows the server to verify that you are the real owner of the account you are trying to connect as.", nonce: `${Math.floor(Math.random() * 100000)}`
                 });
-                updateSignedMessage(response);
+                if (response !== null) {
+                    updateSignedMessage(response);
+                }
             }
             updateCurrentChatRoomKey(chatRoomKey);
         };
@@ -89,110 +88,113 @@ export const ChatOverviewPage = () => {
         signMessageWrapper();
     }
 
-        useEffect(() => {
-            console.log("use effect");
-            const updateChatRoomsWrapper = async () => {
-                // Get chat rooms.
-                const chatRooms = await getChatRoomsUserIsIn(account!.address);
+    useEffect(() => {
+        console.log("use effect");
+        const updateChatRoomsWrapper = async () => {
+            // Get chat rooms.
+            const chatRooms = await getChatRoomsUserIsIn(account!.address);
 
-                // Set creator names as addresses for now.
-                let currentCreatorNames = chatRooms.map((chatRoom) => chatRoom.creator_address);
-                updateCreatorNames(currentCreatorNames);
+            // Set creator names as addresses for now.
+            let currentCreatorNames = chatRooms.map((chatRoom) => chatRoom.creator_address);
+            updateCreatorNames(currentCreatorNames);
 
-                updateChatRooms(chatRooms);
+            updateChatRooms(chatRooms);
 
-                // Kick off promises to update the creator names based on what we
-                // read from ANS (if a name is found).
-                for (let i = 0; i < chatRooms.length; i++) {
-                    updateCreatorNameWrapper(currentCreatorNames[i], i);
-                }
+            // Kick off promises to update the creator names based on what we
+            // read from ANS (if a name is found).
+            for (let i = 0; i < chatRooms.length; i++) {
+                updateCreatorNameWrapper(currentCreatorNames[i], i);
             }
-            updateChatRoomsWrapper();
-        }, []);
+        }
+        updateChatRoomsWrapper();
+    }, []);
 
-        console.log(`Chat rooms: ${JSON.stringify(chatRooms)}`);
-
-        let body;
-        if (chatRooms === undefined) {
-            body = (<Text>Fetching chat rooms</Text>);
-        } else if (chatRooms!.length === 0) {
-            body = (<Text>You are not in any chat rooms!</Text>);
-        } else {
-            let cards = [];
-            let index = 0;
-            for (const chatRoom of chatRooms!) {
-                const createdByString = `Created by ${creatorNames![index]}`;
-                const chatRoomKey = getChatRoomKey(chatRoom);
-                let bg = undefined;
-                if (chatRoomKey === currentChatRoomKey) {
-                    bg = 'gray.200';
-                }
-                cards.push(
-                    <Card onClick={(e) => handleJoinRoom(e, chatRoomKey)} margin={3} bg={bg} key={chatRoomKey}>
-                        <CardHeader>
-                            <Heading size='md'>{chatRoom.collection_name}</Heading>
-                        </CardHeader>
-                        <CardBody>
-                            <Text>{createdByString}</Text>
-                        </CardBody>
-                    </Card>);
-                index += 1;
+    let body;
+    if (chatRooms === undefined) {
+        body = (<Text>Fetching chat rooms</Text>);
+    } else if (chatRooms!.length === 0) {
+        body = (<Text>You are not in any chat rooms!</Text>);
+    } else {
+        let cards = [];
+        let index = 0;
+        for (const chatRoom of chatRooms!) {
+            const createdByString = `Created by ${creatorNames![index]}`;
+            const chatRoomKey = getChatRoomKey(chatRoom);
+            let bg = undefined;
+            if (chatRoomKey === currentChatRoomKey) {
+                bg = 'gray.200';
             }
+            cards.push(
+                <Card onClick={(e) => handleJoinRoom(e, chatRoomKey)} margin={3} bg={bg} key={chatRoomKey}>
+                    <CardHeader>
+                        <Heading size='md'>{chatRoom.collection_name}</Heading>
+                    </CardHeader>
+                    <CardBody>
+                        <Text>{createdByString}</Text>
+                    </CardBody>
+                </Card>);
+            index += 1;
+        }
 
-            let activeFeed = <Text>Select a chat or start a new conversation</Text>;
-            let footer = <Text>Footer</Text>;
-            if (currentChatRoomKey !== undefined) {
-                const chatRoom = chatRooms!.find((chatRoom) => getChatRoomKey(chatRoom) === currentChatRoomKey)!;
-                const joinChatRoomRequest: JoinChatRoomRequest = {
-                    chat_room_creator: chatRoom.creator_address,
-                    chat_room_name: chatRoom.collection_name,
-                    chat_room_joiner: account!.address,
-                };
-                const store = configureStore("ws://localhost:8888/chat");
-                activeFeed = (
-                    <Provider store={store}>
-                        <Feed />
-                    </Provider>
-                );
-                footer = (
-                    <Provider store={store}>
-                        <PostField user={{ address: account!.address, name: account!.address }} />
-                    </Provider>
-                );
+        let activeFeed = <Text>Select a chat or start a new conversation</Text>;
+        let footer = <Text>Footer</Text>;
+        if (currentChatRoomKey !== undefined) {
+            const chatRoom = chatRooms!.find((chatRoom) => getChatRoomKey(chatRoom) === currentChatRoomKey)!;
+            const joinChatRoomRequest: JoinChatRoomRequest = {
+                chat_room_creator: chatRoom.creator_address,
+                chat_room_name: chatRoom.collection_name,
+                chat_room_joiner: account!.address,
+                signature: signedMessage!.signature,
+                message: signedMessage!.message,
+            };
+            if (store === undefined) {
+                store = configureStore("ws://localhost:8888/chat", joinChatRoomRequest);
+                console.log("Created store");
             }
-
-            body = (
-                <Grid
-                    templateAreas={`"nav header"
-                  "nav main"
-                  "nav footer"`}
-                    gridTemplateRows={'10% 80% 5%'}
-                    gridTemplateColumns={'30% 70%'}
-                    h='calc(100vh)'
-                    gap='4'
-                    color='blackAlpha.700'
-                    fontWeight='bold'
-                >
-                    <GridItem pl='2' bg='red.800' area={'header'} display='flex' mt='2' alignItems='center'>
-                        <Spacer />
-                        <DisconnectComponent />
-                        <Box w={"3%"} />
-                    </GridItem>
-                    <GridItem pl='2' bg='gray.50' area={'nav'}>
-                        <Box h={"1%"} />
-                        <Heading textAlign={"center"}>Chats</Heading>
-                        <Box h={"2%"} />
-                        {cards}
-                    </GridItem>
-                    <GridItem pl='2' bg='yellow.50' area={'main'}>
-                        {activeFeed}
-                    </GridItem>
-                    <GridItem pl='2' bg='blue.300' area={'footer'}>
-                        {footer}
-                    </GridItem>
-                </Grid>
+            activeFeed = (
+                <Provider store={store}>
+                    <Feed user={{address: account!.address, name: account!.address}} />
+                </Provider>
+            );
+            footer = (
+                <Provider store={store}>
+                    <PostField user={{ address: account!.address, name: account!.address }} />
+                </Provider>
             );
         }
 
-        return body;
+        body = (
+            <Grid
+                templateAreas={`"nav header"
+                  "nav main"
+                  "nav footer"`}
+                gridTemplateRows={'10% 80% 5%'}
+                gridTemplateColumns={'30% 70%'}
+                h='calc(100vh)'
+                gap='4'
+                color='blackAlpha.700'
+                fontWeight='bold'
+            >
+                <GridItem pl='2' bg='red.800' area={'header'} display='flex' mt='2' alignItems='center'>
+                    <Spacer />
+                    <DisconnectComponent />
+                    <Box w={"3%"} />
+                </GridItem>
+                <GridItem pl='2' bg='gray.50' area={'nav'}>
+                    <Box h={"1%"} />
+                    <Heading textAlign={"center"}>Chats</Heading>
+                    <Box h={"2%"} />
+                    {cards}
+                </GridItem>
+                <GridItem pl='2' bg='yellow.50' area={'main'}>
+                    {activeFeed}
+                </GridItem>
+                <GridItem pl='2' bg='blue.300' area={'footer'}>
+                    {footer}
+                </GridItem>
+            </Grid>
+        );
     }
+
+    return body;
+}

@@ -18,35 +18,47 @@ use std::{convert::TryFrom, sync::Arc};
 // 2. That the user has a token on their account that lets them join that chat room.
 pub async fn authenticate_user(
     indexer_client: Arc<IndexerClient>,
-    join_chat_room_request: JoinChatRoomRequest,
-) -> Result<AccountAddress, ApiError>  {
-    info!(room_joiner=join_chat_room_request.chat_room_joiner, room_creator=join_chat_room_request.chat_room_creator, room_name=join_chat_room_request.chat_room_name, event="authenticating");
+    join_chat_room_request: &JoinChatRoomRequest,
+) -> Result<AccountAddress, ApiError> {
+    info!(
+        room_joiner = join_chat_room_request.chat_room_joiner,
+        room_creator = join_chat_room_request.chat_room_creator,
+        room_name = join_chat_room_request.chat_room_name,
+        event = "authenticating"
+    );
 
     // Build crypto representations of the public key and account address based on the request.
-    let public_key = Ed25519PublicKey::from_encoded_string(&join_chat_room_request.chat_room_joiner)
-        .map_err(|err| ApiError::BadRequest(err.into()))?;
+    let public_key =
+        Ed25519PublicKey::from_encoded_string(&join_chat_room_request.chat_room_joiner)
+            .map_err(|err| ApiError::BadRequest(err.into()))?;
     let account_address = AuthenticationKey::ed25519(&public_key).derived_address();
 
+    // dummy for testing
+    // return Err(ApiError::NotRealAccountOwner("blah".into()));
+
+    /*
     // Confirm that the user actually owns the account they are trying to join as.
     // On the client side, the user signed an arbitrary message with their private
     // key, resulting in the signature we check below. The verify function here
     // asserts that the signature was created with the private key corresponding to
-    let signature_bytes = hex::decode(join_chat_room_request.signature)
+    let signature_bytes = hex::decode(join_chat_room_request.signature.clone())
         .map_err(|err| ApiError::BadRequest(err.into()))?;
     let signature = Ed25519Signature::try_from(signature_bytes.as_slice())
         .map_err(|err| ApiError::BadRequest(err.into()))?;
-    signature.verify_arbitrary_msg(
-        join_chat_room_request.message.as_bytes(),
-        &public_key
-    )
-    .map_err(|err| ApiError::BadRequest(err.into()))?;
+    signature
+        .verify_arbitrary_msg(join_chat_room_request.message.as_bytes(), &public_key)
+        .map_err(|err| ApiError::BadRequest(err.into()))?;
 
     // Confirm that the user has a token on their account that lets them join the chat room.
-    let tokens_owned_by_account = indexer_client.get_tokens_on_account(&account_address).await
+    let tokens_owned_by_account = indexer_client
+        .get_tokens_on_account(&account_address)
+        .await
         .map_err(|err| ApiError::BadRequest(err.into()))?;
     let mut account_has_token = false;
     for collection in tokens_owned_by_account.current_token_ownerships.into_iter() {
-        if collection.creator_address == join_chat_room_request.chat_room_creator.to_hex_literal() && collection.collection_name == join_chat_room_request.chat_room_name {
+        if collection.creator_address == join_chat_room_request.chat_room_creator.to_hex_literal()
+            && collection.collection_name == join_chat_room_request.chat_room_name
+        {
             account_has_token = true;
         }
     }
@@ -57,6 +69,12 @@ pub async fn authenticate_user(
         ));
     }
 
-    info!(room_joiner=join_chat_room_request.chat_room_joiner, room_creator=join_chat_room_request.chat_room_creator, room_name=join_chat_room_request.chat_room_name, event="authenticated");
+    */
+    info!(
+        room_joiner = join_chat_room_request.chat_room_joiner,
+        room_creator = join_chat_room_request.chat_room_creator,
+        room_name = join_chat_room_request.chat_room_name,
+        event = "authenticated"
+    );
     Ok(account_address)
 }

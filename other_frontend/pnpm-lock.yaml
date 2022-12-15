@@ -30,6 +30,7 @@ specifiers:
   react-redux: ^8.0.5
   react-router-dom: ^6.4.5
   react-scripts: 5.0.1
+  react-use-websocket: ^4.2.0
   redux: ^4.2.0
   redux-saga: ^1.2.2
   timeago.js: ^4.0.2
@@ -66,6 +67,7 @@ dependencies:
   react-redux: 8.0.5_6fpxtwwxc52cyvwzdgczt4jvpq
   react-router-dom: 6.4.5_biqbaboplfbrettd7655fr4n2y
   react-scripts: 5.0.1_xp2cftc5derjipxtxjan54busm
+  react-use-websocket: 4.2.0_biqbaboplfbrettd7655fr4n2y
   redux: 4.2.0
   redux-saga: 1.2.2
   timeago.js: 4.0.2
@@ -10569,6 +10571,16 @@ packages:
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    dev: false
+
+  /react-use-websocket/4.2.0_biqbaboplfbrettd7655fr4n2y:
+    resolution: {integrity: sha512-ZovaTlc/tWX6a590fi3kMWImhyoWj46BWJWvO5oucZJzRnVVhYtes2D9g+5MKXjSdR7Es3456hB89v4/1pcBKg==}
+    peerDependencies:
+      react: '>= 18.0.0'
+      react-dom: '>= 18.0.0'
+    dependencies:
       react: 18.2.0
       react-dom: 18.2.0_react@18.2.0
     dev: false
