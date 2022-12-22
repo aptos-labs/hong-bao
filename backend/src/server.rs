@@ -73,15 +73,19 @@ impl Server {
                             ));
                         })
                 },
-            )
-            .recover(handle_rejection);
+            );
+
+        let health = warp::path::end()
+            .map(|| "Healthy! Try connecting to a chat room at the /chat endpoint!");
+
+        let routes = chat.or(health).recover(handle_rejection);
 
         let shutdown = async {
             tokio::signal::ctrl_c()
                 .await
                 .expect("Failed to install CTRL+C signal handler");
         };
-        let (addr, serving) = warp::serve(chat).bind_with_graceful_shutdown(
+        let (addr, serving) = warp::serve(routes).bind_with_graceful_shutdown(
             (
                 IpAddr::from_str(&self.listen_address).expect("Listen address was invalid"),
                 self.listen_port,
