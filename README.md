@@ -17,7 +17,7 @@ We want to be able to let users:
 ## Detailed Journey
 
 1. John, Robin, Mary, Fred are friends in real life
-2. In Wallet, they are able to create a group based on their user addresses, and named their group “Lil Degens”. UI -
+2. In Wallet, they are able to create a group based on their user addresses, and named their group “Lil Degens”. UX -
     1. Press create Group
     2. Name Group
     3. Add members to group based on wallet address [can also add by ANS]
