@@ -95,7 +95,7 @@ module addr::hongbao14 {
         let addr = signer::address_of(account);
 
         // Make sure there is at least one allowed recipient.
-        assert!(vector::length(&allowed_recipients) > 0, error::invalid_state(E_NOT_ALLOWED_TO_SNATCH));
+        assert!(vector::length(&allowed_recipients) > 0, error::invalid_state(E_NO_RECIPIENTS_SPECIFIED));
 
         // Make sure the expiration time is in the future.
         assert!(expiration_time > timestamp::now_seconds(), error::invalid_state(E_GIFT_EXPIRED_IN_PAST));
