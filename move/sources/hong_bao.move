@@ -12,6 +12,11 @@ module addr::hongbao14 {
     use aptos_token::token::{Self, TokenId};
     use aptos_token::token_transfers::{Self};
 
+    #[test_only]
+    use aptos_framework::account;
+    #[test_only]
+    use aptos_framework::coin::MintCapability;
+
     /// The snatcher tried to snatch a packet from a Gift on an account that
     /// doesn't have a GiftHolder.
     const E_NOT_INITIALIZED: u64 = 1;
@@ -337,4 +342,241 @@ module addr::hongbao14 {
         let addr = signer::address_of(&account);
     }
     */
+
+    #[test_only]
+    public fun set_up_testing_time_env(
+        aptos_framework: &signer,
+        timestamp: u64
+    ) {
+        // set up global time for testing purpose
+        timestamp::set_time_has_started_for_testing(aptos_framework);
+        timestamp::update_global_time_for_test_secs(timestamp);
+    }
+    
+    #[test_only]
+    fun get_mint_cap(
+        aptos_framework: &signer
+    ): MintCapability<AptosCoin> {
+        let (burn_cap, freeze_cap, mint_cap) = coin::initialize<AptosCoin>(
+            aptos_framework,
+            string::utf8(b"TC"),
+            string::utf8(b"TC"),
+            8,
+            false,
+        );
+        coin::destroy_freeze_cap(freeze_cap);
+        coin::destroy_burn_cap(burn_cap);
+        mint_cap
+    }
+
+    #[test_only]
+    fun create_test_account(
+        mint_cap: &MintCapability<AptosCoin>,
+        account: &signer
+    ) {
+        account::create_account_for_test(signer::address_of(account));
+        coin::register<AptosCoin>(account);
+        let coins = coin::mint<AptosCoin>(2000, mint_cap);
+        coin::deposit(signer::address_of(account), coins);
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, aptos_framework = @aptos_framework)]
+    public entry fun test_happy_path(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);
+        create_test_account(&mint_cap, &snatcher1);
+        create_test_account(&mint_cap, &snatcher2);
+        coin::destroy_mint_cap(mint_cap);
+        let gift_addr = signer::address_of(&account);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address];
+        create_gift(&account,string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 100);
+        snatch_packet(&snatcher1, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30001, location = Self)]
+    public entry fun test_not_initialized(
+        account: signer,
+        snatcher1: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);        
+        create_test_account(&mint_cap, &snatcher1);    
+        coin::destroy_mint_cap(mint_cap);   
+        let gift_addr = signer::address_of(&account);
+        snatch_packet(&snatcher1, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30002, location = Self)]
+    public entry fun test_no_recipients_specified(
+        account: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account); 
+        coin::destroy_mint_cap(mint_cap);       
+        let allowed_recipients = vector<address>[];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+    }
+    
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30003, location = Self)]
+    public entry fun test_gift_expired_in_past(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);  
+        create_test_account(&mint_cap, &snatcher1);  
+        create_test_account(&mint_cap, &snatcher2);  
+        coin::destroy_mint_cap(mint_cap);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address ];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 9);
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, snatcher3=@0x102, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30004, location = Self)]
+    public entry fun test_gift_already_exists_with_this_key(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);  
+        create_test_account(&mint_cap, &snatcher1);  
+        create_test_account(&mint_cap, &snatcher2); 
+        coin::destroy_mint_cap(mint_cap);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address ];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+    }    
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30005, location = Self)]
+    public entry fun test_expired(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);
+        create_test_account(&mint_cap, &snatcher1);
+        create_test_account(&mint_cap, &snatcher2);
+        coin::destroy_mint_cap(mint_cap);
+        let gift_addr = signer::address_of(&account);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+        set_up_testing_time_env(&aptos_framework, 30);
+        snatch_packet(&snatcher1, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30006, location = Self)]
+    public entry fun test_snatcher_is_gifter(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);        
+        create_test_account(&mint_cap, &snatcher1);   
+        create_test_account(&mint_cap, &snatcher2);  
+        coin::destroy_mint_cap(mint_cap); 
+        let gift_addr = signer::address_of(&account);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address ];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+        snatch_packet(&account, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, snatcher3=@0x102, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30007, location = Self)]
+    public entry fun test_not_allowed_to_snatch(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        snatcher3: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);  
+        create_test_account(&mint_cap, &snatcher1);  
+        create_test_account(&mint_cap, &snatcher2); 
+        create_test_account(&mint_cap, &snatcher3); 
+        coin::destroy_mint_cap(mint_cap);
+        let gift_addr = signer::address_of(&account);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address ];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 5, 6, 20);
+        snatch_packet(&snatcher3, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, snatcher3=@0x102, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30008, location = Self)]
+    public entry fun test_no_packets_left(
+        account: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);  
+        create_test_account(&mint_cap, &snatcher1);  
+        create_test_account(&mint_cap, &snatcher2); 
+        coin::destroy_mint_cap(mint_cap);
+        let gift_addr = signer::address_of(&account);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+        let allowed_recipients = vector<address>[ snatcher1_address, snatcher2_address ];
+        create_gift(&account,string::utf8(b"test_gift_key"), allowed_recipients, 0, 5, 100);
+        snatch_packet(&snatcher1, gift_addr, string::utf8(b"test_gift_key"));
+    }
+
+    #[test (account = @0x123, snatcher1=@0x100, snatcher2=@0x101, snatcher3=@0x102, aptos_framework = @aptos_framework)]
+    #[expected_failure(abort_code = 0x30009, location = Self)]
+    public entry fun test_gift_not_expired_yet(
+        account: signer,
+        snatcher1: signer,
+        aptos_framework: signer
+    ) acquires GiftHolder {
+        set_up_testing_time_env(&aptos_framework, 10);
+        let mint_cap = get_mint_cap(&aptos_framework);
+        create_test_account(&mint_cap, &account);  
+        coin::destroy_mint_cap(mint_cap);
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let allowed_recipients = vector<address>[ snatcher1_address ];
+        create_gift(&account, string::utf8(b"test_gift_key"), allowed_recipients, 1, 5, 100);
+        reclaim_gift(&account, string::utf8(b"test_gift_key"));
+    }
 }
