@@ -1,10 +1,10 @@
 # Into 2023 Hackathon: Hong Bao 🧧
 
-Hello!!
+Read more about the inspiration behind this project here: https://medium.com/@wintertoro/wechat-red-envelopes-on-aptos-fdc8a7596ca.
 
 # User Story
 
-##High level journey 
+## High level journey 
 
 We want to be able to let users:
 
@@ -55,4 +55,4 @@ We want to be able to let users:
 
 # Other future development
 
-1. Discord owners (like NFT collections) can organize gamified giveaways for their holders like this, using a mass import function)
+1. Discord owners (like NFT collections) can organize gamified giveaways for their holders like this, using a mass import function.
