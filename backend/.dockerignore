@@ -1,8 +1,0 @@
-target
-Dockerfile
-.dockerignore
-.git
-.gitignore
-*.swp
-README.md
-deployment
