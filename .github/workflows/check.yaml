@@ -1,0 +1,32 @@
+name: check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  move:
+    runs-on: runs-on,runner=2cpu-linux-x64,run-id=${{ github.run_id }}
+    defaults:
+      run:
+        working-directory: move
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - run: yes | npx --yes @aptos-labs/aptos-cli update movefmt
+      - run: npx --yes @aptos-labs/aptos-cli move fmt
+      - run: |
+          if git diff --name-only | grep "sources/" > /dev/null; then
+            echo "Error: Found unstaged changes in sources/ directory after formatting"
+            git diff
+            exit 1
+          fi
+      - run: npx --yes @aptos-labs/aptos-cli move lint --named-addresses addr=0x5
+      - run: npx --yes @aptos-labs/aptos-cli move compile --named-addresses addr=0x5
+      - run: npx --yes @aptos-labs/aptos-cli move test --named-addresses addr=0x5
