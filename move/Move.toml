@@ -1,19 +1,16 @@
 [package]
-name = 'hongbao14'
+name = 'hongbao'
 version = '1.0.0'
 
 [dependencies.AptosFramework]
-git = 'https://github.com/aptos-labs/aptos-core.git'
+git = 'https://github.com/aptos-labs/aptos-framework.git'
 rev = 'main'
-subdir = 'aptos-move/framework/aptos-framework'
+subdir = 'aptos-framework'
 
 [dependencies.AptosToken]
-git = 'https://github.com/aptos-labs/aptos-core.git'
+git = 'https://github.com/aptos-labs/aptos-framework.git'
 rev = 'main'
-subdir = 'aptos-move/framework/aptos-token'
+subdir = 'aptos-token'
 
 [addresses]
-addr = "b078d693856a65401d492f99ca0d6a29a0c5c0e371bc2521570a86e40d95f823"
-std = "0x1"
-aptos_framework = "0x1"
-aptos_token = "0x3"
+addr = "_"
