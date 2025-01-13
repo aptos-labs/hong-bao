@@ -95,7 +95,7 @@ module addr::hongbao {
         /// These are all the addresses that have taken a envelope from this gift.
         /// The value doesn't mean anything, we only care about the keys. We just use
         /// this because there is no set type in Move.
-        recipients: SmartTable<address, bool>,
+        recipients: Recipients,
 
         /// The total number of envelopes in this Gift.
         num_envelopes: u64,
@@ -122,6 +122,13 @@ module addr::hongbao {
         extend_ref: ExtendRef,
         transfer_ref: TransferRef,
         delete_ref: DeleteRef
+    }
+
+    // We use an enum so we can update to BigOrderedMap later.
+    enum Recipients has store {
+        RecipientsSmartTable {
+            recipients: SmartTable<address, bool>
+        }
     }
 
     /// This works for coins / migrated coins. We convert the coin into an FA and then
@@ -232,9 +239,8 @@ module addr::hongbao {
         // object too.
         let delete_ref = object::generate_delete_ref(constructor_ref);
 
-        // Create a FA store that the object for the gift will own.
+        // We store this so we know what asset we're dealing with.
         let fa_metadata = fungible_asset::metadata_from_asset(&fa);
-        fungible_asset::create_store(constructor_ref, fa_metadata);
 
         // If the paylink verification key is set, validate it.
         if (option::is_some(&paylink_verification_key)) {
@@ -245,7 +251,7 @@ module addr::hongbao {
 
         // Create the Gift itself.
         let gift = Gift {
-            recipients: smart_table::new(),
+            recipients: Recipients::RecipientsSmartTable { recipients: smart_table::new() },
             num_envelopes,
             expiration_time,
             fa_metadata,
@@ -326,10 +332,12 @@ module addr::hongbao {
         assert!(num_remaining_envelopes > 0, error::invalid_state(E_NO_ENVELOPES_LEFT));
 
         // Make sure the caller hasn't already snatched a envelope.
-        assert!(
-            !smart_table::contains(&gift_.recipients, caller_address),
-            error::invalid_state(E_ALREADY_SNATCHED)
-        );
+        match(&gift_.recipients) {
+            RecipientsSmartTable { recipients } => assert!(
+                !smart_table::contains(recipients, caller_address),
+                error::invalid_state(E_ALREADY_SNATCHED)
+            )
+        };
 
         // If the paylink verification key is set, validate that the user provided a
         // valid signed message.
@@ -368,22 +376,24 @@ module addr::hongbao {
         //
         // If there is only 1 envelope left, the snatcher gets whatever is left.
         let amount =
-            if (remaining_amount == 1) {
+            if (num_remaining_envelopes == 1) {
                 remaining_amount
             } else {
                 randomness::u64_range(0, remaining_amount + 1)
             };
 
-        // Withdraw the amount from the FA store.
-        let fa = primary_fungible_store::withdraw(
-            &gift_signer, gift_.fa_metadata, amount
+        // Transfer the amount from the FA store.
+        primary_fungible_store::transfer(
+            &gift_signer,
+            gift_.fa_metadata,
+            caller_address,
+            amount
         );
 
-        // Deposit the amount into the snatcher's FA store.
-        primary_fungible_store::deposit(caller_address, fa);
-
         // Mark the snatcher as having snatched a envelope.
-        smart_table::add(&mut gift_.recipients, caller_address, true);
+        match(&mut gift_.recipients) {
+            RecipientsSmartTable { recipients } => smart_table::add(recipients, caller_address, true)
+        };
 
         event::emit(
             ClaimEnvelopeEvent {
@@ -423,14 +433,14 @@ module addr::hongbao {
         let balance = primary_fungible_store::balance(gift_address, gift_.fa_metadata);
 
         if (balance > 0) {
-            // Withdraw the balance.
+            // Transfer the balance back to the caller.
             let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
-            let fa =
-                primary_fungible_store::withdraw(
-                    &gift_signer, gift_.fa_metadata, balance
-                );
-            // Return it to the caller.
-            primary_fungible_store::deposit(gift_creator_address, fa);
+            primary_fungible_store::transfer(
+                &gift_signer,
+                gift_.fa_metadata,
+                gift_creator_address,
+                balance
+            );
         };
 
         // Now we clean up. First, destructure the gift.
@@ -447,7 +457,9 @@ module addr::hongbao {
             delete_ref
         } = gift_;
 
-        smart_table::destroy(recipients);
+        match(recipients) {
+            RecipientsSmartTable { recipients } => smart_table::destroy(recipients)
+        };
 
         // Delete the object.
         object::delete(delete_ref);
@@ -464,7 +476,11 @@ module addr::hongbao {
 
     /// Get the number of remaining envelopes in the gift.
     inline fun remaining_envelopes(gift_: &Gift): u64 {
-        gift_.num_envelopes - smart_table::length(&gift_.recipients)
+        let len =
+            match(&gift_.recipients) {
+                RecipientsSmartTable { recipients } => smart_table::length(recipients)
+            };
+        gift_.num_envelopes - len
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
