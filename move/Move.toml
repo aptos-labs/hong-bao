@@ -13,4 +13,4 @@ rev = 'main'
 subdir = 'aptos-token'
 
 [addresses]
-addr = "0x0111"
+addr = "_"
