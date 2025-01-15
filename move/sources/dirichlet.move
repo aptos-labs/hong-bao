@@ -64,9 +64,7 @@ module addr::dirichlet {
 
     #[test_only]
     fun multiple_sequential_dirichlet_hongbao(
-        num_draws: u64,
-        total_amount: u64,
-        num_packets: u64
+        num_draws: u64, total_amount: u64, num_packets: u64
     ): vector<u64> {
         let result = vector::empty();
         let remaining_money = total_amount;
