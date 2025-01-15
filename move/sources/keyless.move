@@ -15,9 +15,9 @@ module addr::keyless {
             account::get_authentication_key(account_address);
 
         let pre_hash: vector<u8> = vector::empty();
-        vector::push_back(&mut pre_hash, 3u8);
-        vector::append(&mut pre_hash, public_key_bytes);
-        vector::push_back(&mut pre_hash, 2u8);
+        pre_hash.push_back(3u8);
+        pre_hash.append(public_key_bytes);
+        pre_hash.push_back(2u8);
         let derived_authentication_key_bytes = hash::sha3_256(pre_hash);
 
         assert!(
