@@ -9,3 +9,5 @@
 # Misc
 *.swp
 .DS_Store
+
+move/test_output.txt
