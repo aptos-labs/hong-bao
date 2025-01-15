@@ -15,23 +15,25 @@ module addr::dirichlet {
     ///     Each draw is independent and normalized at the end.
     ///     Key insight: If X_1,...,X_n ~ Gamma(alpha_i, 1) independently,
     ///     then (X_1/S,...,X_n/S) ~ Dirichlet(alpha_1,...,alpha_n) where S = sum(X_i)
-    public(friend) fun sequential_dirichlet_hongbao(total_amount: u64, num_packets: u64): FixedPoint32 {
+    public(friend) fun sequential_dirichlet_hongbao(
+        total_amount: u64, num_packets: u64
+    ): FixedPoint32 {
         // Use exponential distribution (Gamma with alpha=1) for simplicity
         let draws: vector<FixedPoint32> = vector::empty();
         let running_sum: FixedPoint32 = fixed_point32::create_from_u64(0);
 
         // Phase 1: Sequential gamma draws
-        for (i in 0..num_packets ) {
+        for (i in 0..num_packets) {
             // Exponential is just Gamma(1,1)
             let random = randomness::u32_integer();
             // Scale random down by max u32, so it's 0->1
-            let random = fixed_point32::create_from_rational((random as u64), (MAX_U32 as u64));
+            let random =
+                fixed_point32::create_from_rational((random as u64), (MAX_U32 as u64));
 
             let draw = generate_exponential(random);
             draws.push_back(draw);
             running_sum = fixed_point32::create_from_raw_value(
-                running_sum.get_raw_value() +
-                    draw.get_raw_value()
+                running_sum.get_raw_value() + draw.get_raw_value()
             );
         };
 
@@ -51,10 +53,10 @@ module addr::dirichlet {
 
         // Need to subtract 32ln(2) to get just ln(1-u)
         let offset = fixed_point32::create_from_raw_value(32 * 2977044472);
-        let actual_ln = fixed_point32::create_from_raw_value(
-            ln_plus_offset.get_raw_value() -
-                offset.get_raw_value()
-        );
+        let actual_ln =
+            fixed_point32::create_from_raw_value(
+                ln_plus_offset.get_raw_value() - offset.get_raw_value()
+            );
 
         // Negate to get -ln(1-u)
         mul_div(actual_ln, complement, one)
@@ -64,7 +66,7 @@ module addr::dirichlet {
     fun multiple_sequential_dirichlet_hongbao(
         num_draws: u64,
         total_amount: u64,
-        num_packets: u64,
+        num_packets: u64
     ): vector<u64> {
         let result = vector::empty();
         let remaining_money = total_amount;
@@ -73,8 +75,8 @@ module addr::dirichlet {
             let draw = sequential_dirichlet_hongbao(remaining_money, remaining_draws);
             let draw = draw.round();
             result.push_back(draw);
-            remaining_money -= draw;
-            remaining_draws -= 1;
+            remaining_money = remaining_money - draw;
+            remaining_draws = remaining_draws - 1;
         };
         result
     }
@@ -85,9 +87,7 @@ module addr::dirichlet {
     use aptos_std::string_utils;
 
     #[test_only]
-    fun initialize(
-        aptos_framework: &signer
-    ) {
+    fun initialize(aptos_framework: &signer) {
         randomness::initialize_for_testing(aptos_framework);
     }
 
@@ -98,16 +98,23 @@ module addr::dirichlet {
         let total_amount: u64 = 1000;
         let num_packets: u64 = 10;
         for (i in 0..10) {
-            let amounts = multiple_sequential_dirichlet_hongbao(num_packets, total_amount, num_packets);
+            let amounts =
+                multiple_sequential_dirichlet_hongbao(
+                    num_packets, total_amount, num_packets
+                );
             assert!(amounts.length() == num_packets);
             let sum = 0;
             amounts.for_each(|amount| {
-                sum += amount;
+                sum = sum + amount;
             });
 
             if (sum != total_amount) {
                 print(&string_utils::format1(&b"amounts: {}", amounts));
-                print(&string_utils::format2(&b"sum: {}, total_amount: {}", sum, total_amount));
+                print(
+                    &string_utils::format2(
+                        &b"sum: {}, total_amount: {}", sum, total_amount
+                    )
+                );
             };
             assert!(total_amount - sum < 2);
         };
@@ -122,7 +129,10 @@ module addr::dirichlet {
         let num_packets: u64 = 8;
 
         for (i in 0..test_runs) {
-            let amounts = multiple_sequential_dirichlet_hongbao(num_packets, total_amount, num_packets);
+            let amounts =
+                multiple_sequential_dirichlet_hongbao(
+                    num_packets, total_amount, num_packets
+                );
             print(&string_utils::format1(&b"amounts: {}", amounts));
         };
     }
