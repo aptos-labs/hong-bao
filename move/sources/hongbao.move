@@ -562,6 +562,7 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_basic_happy_path(
         creator: signer,
         snatcher1: signer,
@@ -625,6 +626,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196609, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_gift_expired_in_past(
         creator: signer,
         snatcher1: signer,
@@ -666,6 +668,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196615, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_snatch_expired(
         creator: signer,
         snatcher1: signer,
@@ -727,6 +730,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196618, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_snatch_twice(
         creator: signer,
         snatcher1: signer,
@@ -782,6 +786,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196616, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_snatcher_is_gifter(
         creator: signer,
         snatcher1: signer,
@@ -829,6 +834,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196617, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_no_envelopes_left(
         creator: signer,
         snatcher1: signer,
@@ -889,6 +895,7 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_reclaim_all_claimed(
         creator: signer,
         snatcher1: signer,
@@ -948,6 +955,7 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_reclaim_expired(
         creator: signer,
         snatcher1: signer,
@@ -1005,6 +1013,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196620, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_reclaim_before_expiration(
         creator: signer,
         snatcher1: signer,
@@ -1058,6 +1067,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196611, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_create_gift_zero_envelopes(
         creator: signer,
         snatcher1: signer,
@@ -1095,6 +1105,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 196610, location = Self)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_create_gift_expiration_too_far(
         creator: signer,
         snatcher1: signer,
@@ -1134,6 +1145,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 65636, location = addr::paylink)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_paylink_invalid_verification_key(
         creator: signer,
         snatcher1: signer,
@@ -1174,6 +1186,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 65538, location = aptos_framework::ed25519)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_paylink_invalid_signed_message(
         creator: signer,
         snatcher1: signer,
@@ -1224,6 +1237,7 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_paylink_happy_path(
         creator: signer,
         snatcher1: signer,
@@ -1282,6 +1296,7 @@ module addr::hongbao {
         )
     ]
     #[expected_failure(abort_code = 65736, location = addr::keyless)]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_keyless_unhappy_path(
         creator: signer,
         snatcher1: signer,
@@ -1326,6 +1341,7 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
+    #[lint::allow_unsafe_randomness]
     public entry fun test_keyless_happy_path(
         creator: signer,
         snatcher1: signer,
