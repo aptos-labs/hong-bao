@@ -1,6 +1,7 @@
 module addr::hongbao {
     use addr::keyless;
     use addr::paylink;
+    use addr::dirichlet;
     use std::error;
     use std::option::{Self, Option};
     use std::signer;
@@ -220,12 +221,12 @@ module addr::hongbao {
 
         // Assert the message is not empty.
         assert!(
-            string::length(&message) > 0,
+            message.length() > 0,
             error::invalid_state(E_MESSAGE_MUST_BE_NON_EMPTY)
         );
 
         // Assert the message is not too long.
-        assert!(string::length(&message) < 280, error::invalid_state(E_MESSAGE_TOO_LONG));
+        assert!(message.length() < 280, error::invalid_state(E_MESSAGE_TOO_LONG));
 
         // Create an object to hold the gift.
         let constructor_ref = &object::create_object(caller_address);
@@ -243,9 +244,9 @@ module addr::hongbao {
         let fa_metadata = fungible_asset::metadata_from_asset(&fa);
 
         // If the paylink verification key is set, validate it.
-        if (option::is_some(&paylink_verification_key)) {
+        if (paylink_verification_key.is_some()) {
             paylink::assert_valid_paylink_verification_key(
-                option::borrow(&paylink_verification_key)
+                paylink_verification_key.borrow()
             );
         };
 
@@ -332,18 +333,18 @@ module addr::hongbao {
         assert!(num_remaining_envelopes > 0, error::invalid_state(E_NO_ENVELOPES_LEFT));
 
         // Make sure the caller hasn't already snatched a envelope.
-        match(&gift_.recipients) {
+        match (&gift_.recipients) {
             RecipientsSmartTable { recipients } => assert!(
-                !smart_table::contains(recipients, caller_address),
+                !recipients.contains(caller_address),
                 error::invalid_state(E_ALREADY_SNATCHED)
             )
         };
 
         // If the paylink verification key is set, validate that the user provided a
         // valid signed message.
-        if (option::is_some(&gift_.paylink_verification_key)) {
+        if (gift_.paylink_verification_key.is_some()) {
             let gift_address = object::object_address(&gift);
-            let verification_key = *option::borrow(&gift_.paylink_verification_key);
+            let verification_key = *gift_.paylink_verification_key.borrow();
             paylink::assert_signed_message_is_valid(
                 gift_address,
                 caller_address,
@@ -379,7 +380,7 @@ module addr::hongbao {
             if (num_remaining_envelopes == 1) {
                 remaining_amount
             } else {
-                randomness::u64_range(0, remaining_amount + 1)
+                dirichlet::sequential_dirichlet_hongbao(remaining_amount, num_remaining_envelopes).round()
             };
 
         // Transfer the amount from the FA store.
@@ -391,8 +392,8 @@ module addr::hongbao {
         );
 
         // Mark the snatcher as having snatched a envelope.
-        match(&mut gift_.recipients) {
-            RecipientsSmartTable { recipients } => smart_table::add(recipients, caller_address, true)
+        match (&mut gift_.recipients) {
+            RecipientsSmartTable { recipients } => recipients.add(caller_address, true)
         };
 
         event::emit(
@@ -457,8 +458,8 @@ module addr::hongbao {
             delete_ref
         } = gift_;
 
-        match(recipients) {
-            RecipientsSmartTable { recipients } => smart_table::destroy(recipients)
+        match (recipients) {
+            RecipientsSmartTable { recipients } => recipients.destroy()
         };
 
         // Delete the object.
@@ -477,7 +478,7 @@ module addr::hongbao {
     /// Get the number of remaining envelopes in the gift.
     inline fun remaining_envelopes(gift_: &Gift): u64 {
         let len =
-            match(&gift_.recipients) {
+            match (&gift_.recipients) {
                 RecipientsSmartTable { recipients } => smart_table::length(recipients)
             };
         gift_.num_envelopes - len
@@ -555,12 +556,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x987,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x987,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[lint::allow_unsafe_randomness]
     public entry fun test_basic_happy_path(
@@ -618,12 +619,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196609, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -660,12 +661,12 @@ module addr::hongbao {
     // second attempt to snatch_envelope.
     // TODO: Find a programmatic way to assert this.
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196615, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -722,12 +723,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196618, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -778,12 +779,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196616, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -826,12 +827,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196617, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -888,12 +889,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[lint::allow_unsafe_randomness]
     public entry fun test_reclaim_all_claimed(
@@ -948,12 +949,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[lint::allow_unsafe_randomness]
     public entry fun test_reclaim_expired(
@@ -1005,12 +1006,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196620, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -1059,12 +1060,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196611, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -1097,12 +1098,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 196610, location = Self)]
     #[lint::allow_unsafe_randomness]
@@ -1137,12 +1138,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 65636, location = addr::paylink)]
     #[lint::allow_unsafe_randomness]
@@ -1161,7 +1162,7 @@ module addr::hongbao {
 
         // Create an invalid verification key (public key length is not 32 bytes).
         let verification_key = vector::empty<u8>();
-        vector::push_back(&mut verification_key, 3u8);
+        verification_key.push_back(3u8);
 
         // See that creating a gift fails.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
@@ -1178,12 +1179,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 65538, location = aptos_framework::ed25519)]
     #[lint::allow_unsafe_randomness]
@@ -1230,12 +1231,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[lint::allow_unsafe_randomness]
     public entry fun test_paylink_happy_path(
@@ -1288,12 +1289,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[expected_failure(abort_code = 65736, location = addr::keyless)]
     #[lint::allow_unsafe_randomness]
@@ -1334,12 +1335,12 @@ module addr::hongbao {
     }
 
     #[
-        test(
-            creator = @0x123,
-            snatcher1 = @0x100,
-            snatcher2 = @0x101,
-            aptos_framework = @aptos_framework
-        )
+    test(
+        creator = @0x123,
+        snatcher1 = @0x100,
+        snatcher2 = @0x101,
+        aptos_framework = @aptos_framework
+    )
     ]
     #[lint::allow_unsafe_randomness]
     public entry fun test_keyless_happy_path(
