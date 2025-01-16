@@ -3,15 +3,14 @@ module addr::hongbao {
     use addr::paylink;
     use addr::dirichlet;
     use std::error;
-    use std::option::{Self, Option};
+    use std::option::Option;
     use std::signer;
-    use std::string::{Self, String};
+    use std::string::String;
     use aptos_framework::coin;
     use aptos_framework::event;
     use aptos_framework::fungible_asset::{Self, FungibleAsset, Metadata};
     use aptos_framework::object::{Self, Object, DeleteRef, ExtendRef, TransferRef};
     use aptos_framework::primary_fungible_store;
-    use aptos_framework::randomness;
     use aptos_framework::smart_table::{Self, SmartTable};
     use aptos_framework::timestamp;
 

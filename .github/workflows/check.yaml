@@ -27,6 +27,6 @@ jobs:
             git diff
             exit 1
           fi
-      - run: npx --yes @aptos-labs/aptos-cli move lint --named-addresses addr=0x5
+      - run: npx --yes @aptos-labs/aptos-cli move lint --named-addresses addr=0x5 --check-test-code
       - run: npx --yes @aptos-labs/aptos-cli move compile --named-addresses addr=0x5
       - run: npx --yes @aptos-labs/aptos-cli move test --named-addresses addr=0x5
