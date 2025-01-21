@@ -492,11 +492,17 @@ module addr::hongbao {
     #[test_only]
     use std::vector;
     #[test_only]
+    use aptos_std::option;
+    #[test_only]
+    use aptos_std::string;
+    #[test_only]
     use aptos_framework::account;
     #[test_only]
     use aptos_framework::aptos_coin::AptosCoin;
     #[test_only]
     use aptos_framework::coin::MintCapability;
+    #[test_only]
+    use aptos_framework::randomness;
 
     #[test_only]
     const E_TEST_FAILURE: u64 = 100000;
