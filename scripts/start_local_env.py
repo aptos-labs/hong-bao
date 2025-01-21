@@ -56,6 +56,7 @@ def parse_args():
         help="Set flags that make this work offline, assuming the deps are present",
     )
     parser.add_argument("--aptos-cli-path", default="aptos")
+    parser.add_argument("--max-gas", type=int, help="Set this to bypass simulation")
     args = parser.parse_args()
     return args
 
@@ -136,9 +137,14 @@ def fresh_start(args):
         )
         print(f"[Local] Created account {profile_name} on localnet")
 
-    move_cmd_extra = []
+    move_compile_extra = []
     if args.offline:
-        move_cmd_extra.append("--skip-fetch-latest-git-deps")
+        move_compile_extra.append("--skip-fetch-latest-git-deps")
+
+    move_run_extra = []
+    if args.max_gas is not None:
+        move_run_extra.append("--max-gas")
+        move_run_extra.append(str(args.max_gas))
 
     # Publish the module as the deployer.
     subprocess.run(
@@ -152,7 +158,7 @@ def fresh_start(args):
             "--profile",
             DEPLOYER_PROFILE_NAME,
         ]
-        + move_cmd_extra,
+        + move_compile_extra,
         **DEFAULT_SUBPROCESS_KWARGS,
     )
     print(f"[Local] Published the {PACKAGE} Move module at {DEPLOYER_ADDRESS}")
@@ -171,16 +177,16 @@ def fresh_start(args):
             "--type-args",
             "0x1::aptos_coin::AptosCoin",
             "--args",
-            "u64:4",  # Number of packets
+            "u64:1000000000",  # Number of packets
             f"u64:{int(time.time() + 60 * 30)}",  # 30 minutes from now
             f"u64:{10 ** 7}",  # 0.1 APT
+            "string:Hello friends!",
             "u8:[]",  # Option none for paylink public key
             "bool:false",  # Keyless only
-        ],
-        **DEFAULT_SUBPROCESS_KWARGS,
+        ]
+        + move_run_extra,
+        **{**DEFAULT_SUBPROCESS_KWARGS, **{"capture_output": True}},
     )
-
-    print(result.stdout)
 
     # Get the txn hash of the txn we just submitted.
     txn_hash = json.loads(result.stdout)["Result"]["transaction_hash"]
@@ -193,7 +199,6 @@ def fresh_start(args):
 
     # Get and print the address of the collection we just created.
     for change in data["changes"]:
-        print(change)
         if change["data"].get("type") == f"{DEPLOYER_ADDRESS}::{HONGBAO_MODULE}::Gift":
             gift_address = change["address"]
             break
@@ -209,28 +214,17 @@ def fresh_start(args):
             "--profile",
             PLAYER1_PROFILE_NAME,
             "--function-id",
-            f"{DEPLOYER_PROFILE_NAME}::{HONGBAO_MODULE}::snatch_packet",
+            f"{DEPLOYER_PROFILE_NAME}::{HONGBAO_MODULE}::snatch_envelope",
             "--args",
-            ",".join(
-                [
-                    (
-                        "address",
-                        gift_address,
-                    ),
-                    (
-                        "vector<u8>",
-                        [],
-                    ),
-                    (
-                        "vector<u8>",
-                        [],
-                    ),
-                ]
-            ),
-        ],
+            f"address:{gift_address}",
+            "u8:[]",
+            "u8:[]",
+            "--profile-gas",
+        ]
+        + move_run_extra,
         **DEFAULT_SUBPROCESS_KWARGS,
     )
-    print(f"[Local] Snatched  as {PLAYER1_PROFILE_NAME}")
+    print(f"[Local] Snatched as {PLAYER1_PROFILE_NAME}")
 
     print("[Local] Done, you can now interact with the localnet!")
 
