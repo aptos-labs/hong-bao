@@ -12,6 +12,9 @@ module addr::dirichlet {
     public(friend) fun sequential_dirichlet_hongbao(
         remaining_amount: u64, remaining_packets: u64
     ): u64 {
+        if (remaining_amount == 0) {
+            return 0
+        };
         // Use stick breaking construction - Beta(1,a) where a is remaining_packets
         // For each draw, take Beta(1,a) portion of remaining
 
