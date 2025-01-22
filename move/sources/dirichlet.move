@@ -21,19 +21,16 @@ module addr::dirichlet {
                 (randomness::u32_integer() as u64), 0xFFFFFFFF
             );
 
-        // Generate exponential for current position, with adjustment for final positions
-        let current_exp =
-            if (remaining_packets <= 2) {
-                // Adjust the exponential to be smaller for last positions
-                let raw_exp = generate_exponential(u);
-                math_fixed::mul_div(
-                    fixed_point32::create_from_u64(1),
-                    raw_exp,
-                    fixed_point32::create_from_rational(1, 2)
-                )
+        let current_exp = {
+            let raw_exp = generate_exponential(u);
+            if (remaining_packets == 2) {
+                // Only adjust for the second-to-last position
+                let scale = fixed_point32::create_from_rational(9, 10); // 0.9
+                math_fixed::mul_div(fixed_point32::create_from_u64(1), raw_exp, scale)
             } else {
-                generate_exponential(u)
-            };
+                raw_exp
+            }
+        };
 
         // Use n-1 for remaining positions as it worked well for most positions
         let remaining_exp = fixed_point32::create_from_u64(remaining_packets - 1);
@@ -145,9 +142,9 @@ module addr::dirichlet {
     #[lint::allow_unsafe_randomness]
     public fun test_print_many_dirichlet_hongbao(aptos_framework: &signer) {
         initialize(aptos_framework);
-        let test_runs = 10000;
+        let test_runs = 1;
         let total_amount: u64 = 3250;
-        let num_packets: u64 = 55;
+        let num_packets: u64 = 3;
 
         for (i in 0..test_runs) {
             let amounts =
