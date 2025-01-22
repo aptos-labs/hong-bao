@@ -381,7 +381,7 @@ module addr::hongbao {
             } else {
                 dirichlet::sequential_dirichlet_hongbao(
                     remaining_amount, num_remaining_envelopes
-                ).round()
+                )
             };
 
         // Transfer the amount from the FA store.

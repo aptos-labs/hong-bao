@@ -3,44 +3,63 @@ module addr::dirichlet {
     use aptos_std::math_fixed::{mul_div, ln_plus_32ln2};
     use std::fixed_point32::{Self, FixedPoint32};
     use aptos_framework::randomness;
-    use std::vector;
+    use aptos_std::math_fixed;
 
     friend addr::hongbao;
 
-    /// 1/ln(2) * 10
-    const LOG2_E_x10: u64 = 14426950408889634;
-    const MAX_U32: u32 = 4_294_967_295u32;
+    const LN2_X_32: u64 = 32 * 2977044472; // 32 * ln(2) in fixed 32 representation
 
-    ///     Sequential Dirichlet construction using Gamma variables.
-    ///     Each draw is independent and normalized at the end.
-    ///     Key insight: If X_1,...,X_n ~ Gamma(alpha_i, 1) independently,
-    ///     then (X_1/S,...,X_n/S) ~ Dirichlet(alpha_1,...,alpha_n) where S = sum(X_i)
     public(friend) fun sequential_dirichlet_hongbao(
-        total_amount: u64, num_packets: u64
-    ): FixedPoint32 {
-        // Use exponential distribution (Gamma with alpha=1) for simplicity
-        let draws: vector<FixedPoint32> = vector::empty();
-        let running_sum: FixedPoint32 = fixed_point32::create_from_u64(0);
+        remaining_amount: u64, remaining_packets: u64
+    ): u64 {
+        // Use stick breaking construction - Beta(1,a) where a is remaining_packets
+        // For each draw, take Beta(1,a) portion of remaining
 
-        // Phase 1: Sequential gamma draws
-        for (i in 0..num_packets) {
-            // Exponential is just Gamma(1,1)
-            let random = randomness::u32_integer();
-            // Scale random down by max u32, so it's 0->1
-            let random =
-                fixed_point32::create_from_rational((random as u64), (MAX_U32 as u64));
-
-            let draw = generate_exponential(random);
-            draws.push_back(draw);
-            running_sum = fixed_point32::create_from_raw_value(
-                running_sum.get_raw_value() + draw.get_raw_value()
+        // Convert random to FixedPoint32 between 0 and 1
+        let u =
+            fixed_point32::create_from_rational(
+                (randomness::u32_integer() as u64), 0xFFFFFFFF
             );
+
+        // Generate exponential for current position, with adjustment for final positions
+        let current_exp =
+            if (remaining_packets <= 2) {
+                // Adjust the exponential to be smaller for last positions
+                let raw_exp = generate_exponential(u);
+                math_fixed::mul_div(
+                    fixed_point32::create_from_u64(1),
+                    raw_exp,
+                    fixed_point32::create_from_rational(1, 2)
+                )
+            } else {
+                generate_exponential(u)
+            };
+
+        // Use n-1 for remaining positions as it worked well for most positions
+        let remaining_exp = fixed_point32::create_from_u64(remaining_packets - 1);
+
+        // Calculate proportion
+        let total =
+            fixed_point32::create_from_raw_value(
+                current_exp.get_raw_value() + remaining_exp.get_raw_value()
+            );
+        let proportion =
+            math_fixed::mul_div(
+                fixed_point32::create_from_u64(1u64), current_exp, total
+            );
+
+        // Calculate amount
+        let amount = fixed_point32::multiply_u64(remaining_amount, proportion);
+
+        // Ensure at least 1 token per packet
+        if (amount >= remaining_amount - (remaining_packets - 1)) {
+            amount = remaining_amount - (remaining_packets - 1);
+        };
+        if (amount == 0) {
+            amount = 1;
         };
 
-        // Phase 2: Normalize and scale
-        let total = fixed_point32::create_from_u64(total_amount);
-        let result = mul_div(draws[0], total, running_sum);
-        fixed_point32::min(result, total)
+        amount
     }
 
     fun generate_exponential(u: FixedPoint32): FixedPoint32 {
@@ -52,7 +71,7 @@ module addr::dirichlet {
         let ln_plus_offset = ln_plus_32ln2(one_minus_u);
 
         // Need to subtract 32ln(2) to get just ln(1-u)
-        let offset = fixed_point32::create_from_raw_value(32 * 2977044472);
+        let offset = fixed_point32::create_from_raw_value(LN2_X_32);
         let actual_ln =
             fixed_point32::create_from_raw_value(
                 ln_plus_offset.get_raw_value() - offset.get_raw_value()
@@ -63,6 +82,13 @@ module addr::dirichlet {
     }
 
     #[test_only]
+    use aptos_std::debug::print;
+    #[test_only]
+    use std::vector;
+    #[test_only]
+    use aptos_std::string_utils;
+
+    #[test_only]
     fun multiple_sequential_dirichlet_hongbao(
         num_draws: u64, total_amount: u64, num_packets: u64
     ): vector<u64> {
@@ -71,18 +97,15 @@ module addr::dirichlet {
         let remaining_draws = num_packets;
         for (i in 0..num_draws) {
             let draw = sequential_dirichlet_hongbao(remaining_money, remaining_draws);
-            let draw = draw.round();
             result.push_back(draw);
+            if (draw > remaining_money) {
+                draw = remaining_money;
+            };
             remaining_money = remaining_money - draw;
             remaining_draws = remaining_draws - 1;
         };
         result
     }
-
-    #[test_only]
-    use aptos_std::debug::print;
-    #[test_only]
-    use aptos_std::string_utils;
 
     #[test_only]
     fun initialize(aptos_framework: &signer) {
@@ -122,9 +145,9 @@ module addr::dirichlet {
     #[lint::allow_unsafe_randomness]
     public fun test_print_many_dirichlet_hongbao(aptos_framework: &signer) {
         initialize(aptos_framework);
-        let test_runs = 1;
+        let test_runs = 10000;
         let total_amount: u64 = 3250;
-        let num_packets: u64 = 8;
+        let num_packets: u64 = 55;
 
         for (i in 0..test_runs) {
             let amounts =
