@@ -49,6 +49,9 @@ module addr::hongbao {
     /// You tried to reclaim a Gift that hasn't expired yet or run out of envelopes / funds.
     const E_CANNOT_RECLAIM_YET: u64 = 12;
 
+    /// Only the owner can reclaim the gift before it expires.
+    const E_ONLY_OWNER_CAN_RECLAIM_EARLY: u64 = 13;
+
     #[event]
     struct CreateGiftEvent has drop, store {
         gift_address: address,
@@ -100,8 +103,8 @@ module addr::hongbao {
         /// The total number of envelopes in this Gift.
         num_envelopes: u64,
 
-        /// When the Gift expires. After this point, no one can snatch any more envelopes
-        /// and the creator can call the `reclaim_gift` function. Unixtime in seconds.
+        /// When the Gift expires. Before this point, only the owner of the gift can
+        /// reclaim the funds. Afterwards, anyone can call reclaim. Unixtime in seconds.
         expiration_time: u64,
 
         /// This tells us what FA this gift holds.
@@ -409,38 +412,60 @@ module addr::hongbao {
         );
     }
 
-    /// Once the gift has expired, the creator can reclaim the remaining balance. We
-    /// also delete the object to get the gas refund. We let anyone call this function.
+    /// When called this sends the remaining balance back to the owner. Whoever calls
+    /// this gets the gas refund. You can only call this once the gift has expired or
+    /// there are no envelopes left.
     ///
-    /// Whoever calls this gets the gas refund from deleting the object and whatnot.
+    /// To reclaim early as the gift owner, call `reclaim_gift_as_owner`.
     public entry fun reclaim_gift(gift: Object<Gift>) acquires Gift {
-        let gift_creator_address = object::owner(gift);
+        let gift_address = object::object_address(&gift);
+        let gift_ = borrow_global<Gift>(gift_address);
+
+        // Make sure either the gift has expired or there are no envelopes left.
+        assert!(
+            timestamp::now_seconds() >= gift_.expiration_time
+                || remaining_envelopes(gift_) == 0,
+            error::invalid_state(E_CANNOT_RECLAIM_YET)
+        );
+
+        reclaim_gift_inner(gift);
+    }
+
+    // These next two functions exist purely to avoid having to redeploy. In a perfect
+    // world, we only need a single reclaim_gift function:
+    // https://gist.github.com/banool/e01679d8c6522981d021c9f00555fe1f
+
+    /// When called this sends the remaining balance back to the owner. Whoever calls
+    /// this gets the gas refund. The owner can call this at any time.
+    public entry fun reclaim_gift_as_owner(
+        caller: &signer, gift: Object<Gift>
+    ) acquires Gift {
+        let caller_address = signer::address_of(caller);
+        assert!(
+            object::is_owner(gift, caller_address),
+            error::invalid_state(E_ONLY_OWNER_CAN_RECLAIM_EARLY)
+        );
+        reclaim_gift_inner(gift);
+    }
+
+    fun reclaim_gift_inner(gift: Object<Gift>) acquires Gift {
+        let gift_owner_address = object::owner(gift);
 
         // We destroy the object at the end of this function, so we don't just borrow
         // the gift, we remove it entirely.
         let gift_address = object::object_address(&gift);
         let gift_ = move_from<Gift>(gift_address);
 
-        // Make sure either the gift has expired or there are no envelopes left.
-        assert!(
-            timestamp::now_seconds() >= gift_.expiration_time
-                || remaining_envelopes(&gift_) == 0,
-            error::invalid_state(E_CANNOT_RECLAIM_YET)
-        );
-
-        // At this point we know that the caller is the owner of the gift and they're
-        // allowed to reclaim the remaining balance.
-
         // Get the remaining balance.
         let balance = primary_fungible_store::balance(gift_address, gift_.fa_metadata);
 
         if (balance > 0) {
-            // Transfer the balance back to the caller.
+            // Transfer the balance back to the owner of the gift.
             let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
             primary_fungible_store::transfer(
                 &gift_signer,
                 gift_.fa_metadata,
-                gift_creator_address,
+                gift_owner_address,
                 balance
             );
         };
@@ -469,7 +494,7 @@ module addr::hongbao {
         event::emit(
             ReclaimGiftEvent {
                 gift_address,
-                creator: gift_creator_address,
+                creator: gift_owner_address,
                 reclaimed_amount: balance,
                 is_reclaimed: true
             }
@@ -1005,7 +1030,7 @@ module addr::hongbao {
         // Fast forward time to the expiration.
         timestamp::update_global_time_for_test_secs(25);
 
-        // Reclaim the gift.
+        // Reclaim the gift. See that anyone can do it.
         reclaim_gift(gift);
 
         // See that the gift is deleted.
@@ -1020,9 +1045,9 @@ module addr::hongbao {
             aptos_framework = @aptos_framework
         )
     ]
-    #[expected_failure(abort_code = 196620, location = Self)]
+    #[expected_failure(abort_code = 196621, location = Self)]
     #[lint::allow_unsafe_randomness]
-    public entry fun test_reclaim_before_expiration(
+    public entry fun test_reclaim_as_owner_not_as_owner(
         creator: signer,
         snatcher1: signer,
         snatcher2: signer,
@@ -1062,8 +1087,115 @@ module addr::hongbao {
         // Fast forward time to before the expiration.
         timestamp::update_global_time_for_test_secs(24);
 
-        // See that reclaiming the gift fails.
+        // See that reclaiming the gift fails if you're not the owner.
+        reclaim_gift_as_owner(&snatcher1, gift);
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196620, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_reclaim_before_expiration_not_as_owner(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                2,
+                25,
+                fa,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        // Snatch only one of the envelopes.
+        snatch_envelope(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+
+        // Fast forward time to before the expiration.
+        timestamp::update_global_time_for_test_secs(24);
+
+        // See that reclaiming the gift fails before the expiration with `reclaim_gift`.
         reclaim_gift(gift);
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_reclaim_before_expiration_as_owner(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                2,
+                25,
+                fa,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        // Snatch only one of the envelopes.
+        snatch_envelope(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+
+        // Fast forward time to before the expiration.
+        timestamp::update_global_time_for_test_secs(24);
+
+        // See that you can reclaim the gift at any time if you're the owner.
+        reclaim_gift_as_owner(&creator, gift);
     }
 
     #[
