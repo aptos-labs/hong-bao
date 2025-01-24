@@ -388,7 +388,7 @@ module addr::hongbao {
             };
 
         // Transfer the amount from the FA store.
-        primary_fungible_store::transfer(
+        transfer_gift(
             &gift_signer,
             gift_.fa_metadata,
             caller_address,
@@ -462,7 +462,7 @@ module addr::hongbao {
         if (balance > 0) {
             // Transfer the balance back to the owner of the gift.
             let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
-            primary_fungible_store::transfer(
+            transfer_gift(
                 &gift_signer,
                 gift_.fa_metadata,
                 gift_owner_address,
@@ -508,6 +508,21 @@ module addr::hongbao {
                 RecipientsSmartTable { recipients } => smart_table::length(recipients)
             };
         gift_.num_envelopes - len
+    }
+
+    inline fun transfer_gift(
+        signer: &signer,
+        gift_metadata: Object<Metadata>,
+        caller_address: address,
+        amount: u64
+    ) {
+        if (object::object_address(&gift_metadata) == @0xa) {
+            coin::transfer<0x1::aptos_coin::AptosCoin>(signer, caller_address, amount);
+        } else {
+            primary_fungible_store::transfer(
+                signer, gift_metadata, caller_address, amount
+            );
+        };
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
