@@ -7,6 +7,7 @@ module addr::hongbao {
     use std::signer;
     use std::string::String;
     use aptos_framework::coin;
+    use aptos_framework::aptos_account;
     use aptos_framework::event;
     use aptos_framework::fungible_asset::{Self, FungibleAsset, Metadata};
     use aptos_framework::object::{Self, Object, DeleteRef, ExtendRef, TransferRef};
@@ -517,7 +518,9 @@ module addr::hongbao {
         amount: u64
     ) {
         if (object::object_address(&gift_metadata) == @0xa) {
-            coin::transfer<0x1::aptos_coin::AptosCoin>(signer, caller_address, amount);
+            aptos_account::transfer_coins<0x1::aptos_coin::AptosCoin>(
+                signer, caller_address, amount
+            );
         } else {
             primary_fungible_store::transfer(
                 signer, gift_metadata, caller_address, amount
