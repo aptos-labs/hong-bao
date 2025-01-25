@@ -7,6 +7,7 @@ module addr::hongbao {
     use std::signer;
     use std::string::String;
     use std::vector;
+    use aptos_std::math64;
     use aptos_framework::aggregator_v2::{Self, Aggregator, AggregatorSnapshot};
     use aptos_framework::coin;
     use aptos_framework::aptos_account;
@@ -333,7 +334,7 @@ module addr::hongbao {
                 num_envelopes
             ),
             coins_remaining: aggregator_v2::create_unbounded_aggregator_with_value<u64>(
-                num_envelopes
+                amount
             ),
             expiration_time,
             fa_metadata,
@@ -476,14 +477,18 @@ module addr::hongbao {
                     let remaining_amount =
                         primary_fungible_store::balance(gift_address, gift_.fa_metadata);
                     let remaining_packets = remaining_envelopes(gift_);
-                    for (_i in 0..RANDOM_ENTRIES_TO_PREGENERATE) {
+                    let to_generate = math64::min(remaining_packets, RANDOM_ENTRIES_TO_PREGENERATE);
+                    for (_i in 0..to_generate) {
                         let amount =
                             dirichlet::sequential_dirichlet_hongbao(
                                 remaining_amount, remaining_packets
                             );
                         envelopes.push_back(amount);
+                        remaining_amount = remaining_amount - amount;
+                        remaining_packets = remaining_packets - 1;
                     };
                     let amount = envelopes.pop_back();
+                    aptos_std::debug::print(&envelopes);
                     gift_.parallel_buckets.add_many_evenly(
                         envelopes, randomness::u64_integer()
                     );
@@ -493,6 +498,7 @@ module addr::hongbao {
                 }
             };
 
+        aptos_std::debug::print(&aggregator_v2::read(&gift_.num_envelopes_remaining));
         // Subtract the amount from the aggregator.
         aggregator_v2::sub(&mut gift_.coins_remaining, amount);
 
