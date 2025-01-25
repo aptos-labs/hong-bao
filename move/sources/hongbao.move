@@ -477,7 +477,8 @@ module addr::hongbao {
                     let remaining_amount =
                         primary_fungible_store::balance(gift_address, gift_.fa_metadata);
                     let remaining_packets = remaining_envelopes(gift_);
-                    let to_generate = math64::min(remaining_packets, RANDOM_ENTRIES_TO_PREGENERATE);
+                    let to_generate =
+                        math64::min(remaining_packets, RANDOM_ENTRIES_TO_PREGENERATE);
                     for (_i in 0..to_generate) {
                         let amount =
                             dirichlet::sequential_dirichlet_hongbao(
