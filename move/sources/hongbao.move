@@ -53,6 +53,9 @@ module addr::hongbao {
     /// Only the owner can reclaim the gift before it expires.
     const E_ONLY_OWNER_CAN_RECLAIM_EARLY: u64 = 13;
 
+    /// You tried to create a gift with less coins than envelopes
+    const E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES: u64 = 14;
+
     #[event]
     struct CreateGiftEvent has drop, store {
         gift_address: address,
@@ -221,6 +224,9 @@ module addr::hongbao {
         // Assert the amount is not zero.
         let amount = fungible_asset::amount(&fa);
         assert!(amount > 0, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ZERO));
+
+        // Assert the amount is greater than or equal to the number of envelopes.
+        assert!(amount >= num_envelopes, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES));
 
         // Assert the message is not empty.
         assert!(
@@ -700,6 +706,45 @@ module addr::hongbao {
             &creator,
             5,
             0,
+            fa,
+            string::utf8(b"hey friends"),
+            option::none(),
+            false
+        );
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196622, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_amount_less_than_envelopes(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift. This should fail because the expiration time is in the past.
+        create_gift(
+            &creator,
+            5,
+            100,
             fa,
             string::utf8(b"hey friends"),
             option::none(),
