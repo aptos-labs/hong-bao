@@ -16,6 +16,7 @@ module addr::hongbao {
     use aptos_framework::timestamp;
 
     const YEAR_IN_SECONDS: u64 = 31536000;
+    const MAX_ENVELOPES: u64 = 8888;
 
     /// You tried to create a gift with an expiration time in the past.
     const E_GIFT_EXPIRATION_IN_PAST: u64 = 1;
@@ -55,6 +56,9 @@ module addr::hongbao {
 
     /// You tried to create a gift with less coins than envelopes
     const E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES: u64 = 14;
+
+    /// You tried to create a gift with too many envelopes
+    const E_ENVELOPES_MUST_BE_LESS_THAN_MAX: u64 = 15;
 
     #[event]
     struct CreateGiftEvent has drop, store {
@@ -227,6 +231,9 @@ module addr::hongbao {
 
         // Assert the amount is greater than or equal to the number of envelopes.
         assert!(amount >= num_envelopes, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES));
+
+        // Assert the number of envelopes is less than the max
+        assert!(num_envelopes <= MAX_ENVELOPES, error::invalid_state(E_ENVELOPES_MUST_BE_LESS_THAN_MAX));
 
         // Assert the message is not empty.
         assert!(
@@ -556,7 +563,7 @@ module addr::hongbao {
     #[test_only]
     const E_TEST_FAILURE: u64 = 100000;
     #[test_only]
-    const DEFAULT_STARTING_BALANCE: u64 = 1000;
+    const DEFAULT_STARTING_BALANCE: u64 = 10000;
 
     #[test_only]
     public fun set_up_testing_time_env(
@@ -740,10 +747,49 @@ module addr::hongbao {
         let coin = coin::withdraw<AptosCoin>(&creator, 1);
         let fa = coin::coin_to_fungible_asset(coin);
 
-        // Create the gift. This should fail because the expiration time is in the past.
+        // Create the gift. This should fail because the number of envelopes is bigger than amount.
         create_gift(
             &creator,
             5,
+            100,
+            fa,
+            string::utf8(b"hey friends"),
+            option::none(),
+            false
+        );
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196623, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_envelopes_greater_than_max(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, MAX_ENVELOPES + 10);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift. This should fail because the num of envelopes is bigger than max.
+        create_gift(
+            &creator,
+            MAX_ENVELOPES + 1,
             100,
             fa,
             string::utf8(b"hey friends"),
