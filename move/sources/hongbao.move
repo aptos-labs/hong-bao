@@ -24,8 +24,8 @@ module addr::hongbao {
 
     const YEAR_IN_SECONDS: u64 = 31536000;
     const MAX_ENVELOPES: u64 = 8888;
-    const RANDOM_ENTRIES_TO_PREGENERATE: u64 = 20;
-    const NUM_PARALLEL_BUCKETS: u64 = 5;
+    const RANDOM_ENTRIES_TO_PREGENERATE: u64 = 200;
+    const NUM_PARALLEL_BUCKETS: u64 = 10;
 
     /// You tried to create a gift with an expiration time in the past.
     const E_GIFT_EXPIRATION_IN_PAST: u64 = 1;
@@ -321,7 +321,8 @@ module addr::hongbao {
             );
         };
 
-        let num_recipient_buckets = if (num_envelopes > 20) { 10 }
+        let num_recipient_buckets = if (num_envelopes > 20) { 5 }
+        else if (num_envelopes > 200) { 50 }
         else { 1 };
 
         // Create the Gift itself.
