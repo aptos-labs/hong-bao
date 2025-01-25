@@ -20,7 +20,7 @@ module addr::smarter_table {
     public fun add<K: copy + drop + store, V: store>(
         self: &mut SmarterTable<K, V>,
         key: K,
-        value: V,
+        value: V
     ) {
         let hash = sip_hash_from_value(&key);
         let table = self.tables.borrow_mut(hash % self.num_tables);
@@ -28,7 +28,9 @@ module addr::smarter_table {
     }
 
     /// Returns true iff `table` contains an entry for `key`.
-    public fun contains<K: copy + drop + store, V: store>(self: &SmarterTable<K, V>, key: K): bool {
+    public fun contains<K: copy + drop + store, V: store>(
+        self: &SmarterTable<K, V>, key: K
+    ): bool {
         let hash = sip_hash_from_value(&key);
         let table = self.tables.borrow(hash % self.num_tables);
         table.contains(key)
@@ -44,11 +46,10 @@ module addr::smarter_table {
     }
 
     /// Destroy a table completely when V has `drop`.
-    public fun destroy<K: copy + drop + store, V: drop + store>(self: SmarterTable<K, V>) {
-        let SmarterTable<K, V> {
-            num_tables,
-            tables
-        } = self;
+    public fun destroy<K: copy + drop + store, V: drop + store>(
+        self: SmarterTable<K, V>
+    ) {
+        let SmarterTable<K, V> { num_tables, tables } = self;
 
         for (i in 0..num_tables) {
             let t = tables.remove(i);
