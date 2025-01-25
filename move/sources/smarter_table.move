@@ -4,20 +4,20 @@ module addr::smarter_table {
     use aptos_std::aptos_hash::sip_hash_from_value;
 
     // This uses multiple smart tables to allow for many parallel buckets.
-    struct SmarterTable<K, V> has key, store {
+    struct SmarterTable<K: copy + drop + store, V: store> has key, store {
         num_tables: u64,
         tables: TableWithLength<u64, SmartTable<K, V>>
     }
 
-    public fun new<K, V>(num_buckets: u64): SmarterTable<K, V> {
+    public fun new<K: copy + drop + store, V: store>(num_buckets: u64): SmarterTable<K, V> {
         let tables = table_with_length::new<u64, SmartTable<K, V>>();
         for (i in 0..num_buckets) {
-            tables.add(i, smart_table::new::<K, V>());
+            tables.add(i, smart_table::new<K, V>());
         };
         SmarterTable<K, V> { num_tables: num_buckets, tables }
     }
 
-    public fun add<K, V>(
+    public fun add<K: copy + drop + store, V: store>(
         self: &mut SmarterTable<K, V>,
         key: K,
         value: V,
@@ -28,13 +28,13 @@ module addr::smarter_table {
     }
 
     /// Returns true iff `table` contains an entry for `key`.
-    public fun contains<K: drop, V>(self: &SmarterTable<K, V>, key: K): bool {
+    public fun contains<K: copy + drop + store, V: store>(self: &SmarterTable<K, V>, key: K): bool {
         let hash = sip_hash_from_value(&key);
         let table = self.tables.borrow(hash % self.num_tables);
         table.contains(key)
     }
 
-    public fun size<K: drop, V: drop>(self: &SmarterTable<K, V>): u64 {
+    public fun size<K: copy + drop + store, V: store>(self: &SmarterTable<K, V>): u64 {
         let size = 0;
         for (i in 0..self.num_tables) {
             let table = self.tables.borrow(i);
@@ -44,7 +44,7 @@ module addr::smarter_table {
     }
 
     /// Destroy a table completely when V has `drop`.
-    public fun destroy<K: drop, V: drop>(self: SmarterTable<K, V>) {
+    public fun destroy<K: copy + drop + store, V: drop + store>(self: SmarterTable<K, V>) {
         let SmarterTable<K, V> {
             num_tables,
             tables

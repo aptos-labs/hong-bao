@@ -472,7 +472,7 @@ module addr::hongbao {
                     let envelopes = vector::empty();
                     let remaining_amount = primary_fungible_store::balance(gift_address, gift_.fa_metadata);
                     let remaining_packets = remaining_envelopes(gift_);
-                    for (_ in 0..RANDOM_ENTRIES_TO_PREGENERATE) {
+                    for (_i in 0..RANDOM_ENTRIES_TO_PREGENERATE) {
                         let amount = dirichlet::sequential_dirichlet_hongbao(
                             remaining_amount,
                             remaining_packets,
