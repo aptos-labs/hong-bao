@@ -12,5 +12,10 @@ git = 'https://github.com/aptos-labs/aptos-framework.git'
 rev = 'main'
 subdir = 'aptos-token'
 
+# Used for local testing
+[dependencies.EmojicoinDotFunCoinFactory]
+local = "../move_test_coin"
+
 [addresses]
 addr = "_"
+emoji_coin="_" # testnet = 0x4e6d7c36cca05c9eec013335a1e9c7b025772f4f0e5e81a8a106efc98c77ccf6 mainnet = 0x6b0debd0d80e34b073b1de5f8bfe27983dd604497ac457fb082844894a3e548d

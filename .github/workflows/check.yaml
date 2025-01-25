@@ -18,6 +18,6 @@ jobs:
       - uses: aptos-labs/actions/test-move@main
         with:
           WORKING_DIRECTORY: move
-          ADDITIONAL_LINT_ARGS: --named-addresses addr=0x5
-          ADDITIONAL_COMPILE_ARGS: --named-addresses addr=0x5
-          ADDITIONAL_TEST_ARGS: --named-addresses addr=0x5
+          ADDITIONAL_LINT_ARGS: --named-addresses addr=0x5,emoji_coin=0x6
+          ADDITIONAL_COMPILE_ARGS: --named-addresses addr=0x5,emoji_coin=0x6
+          ADDITIONAL_TEST_ARGS: --named-addresses addr=0x5,emoji_coin=0x6

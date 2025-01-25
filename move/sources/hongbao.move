@@ -15,6 +15,8 @@ module addr::hongbao {
     use aptos_framework::smart_table::{Self, SmartTable};
     use aptos_framework::timestamp;
 
+    use emoji_coin::coin_factory::Emojicoin;
+
     const YEAR_IN_SECONDS: u64 = 31536000;
     const MAX_ENVELOPES: u64 = 8888;
 
@@ -568,10 +570,16 @@ module addr::hongbao {
         caller_address: address,
         amount: u64
     ) {
-        if (object::object_address(&gift_metadata) == @0xa) {
+        let fa_metadata_address = object::object_address(&gift_metadata);
+        // for hongbao and APT, only transfer coin to avoid many new FA's going around
+        if (fa_metadata_address == @0xa) {
             aptos_account::transfer_coins<0x1::aptos_coin::AptosCoin>(
                 signer, caller_address, amount
             );
+        } else if (fa_metadata_address
+            == @0x180e877b151107d7d180545c2fdb373578740872a59071f636c62bd60a6b249d) {
+            // Hongbao emoji on mainnet
+            aptos_account::transfer_coins<Emojicoin>(signer, caller_address, amount);
         } else {
             primary_fungible_store::transfer(
                 signer, gift_metadata, caller_address, amount

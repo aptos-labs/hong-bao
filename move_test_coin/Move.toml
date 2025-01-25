@@ -1,0 +1,16 @@
+[package]
+name = 'EmojicoinDotFunCoinFactory'
+version = '1.0.0'
+
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-framework.git'
+rev = 'main'
+subdir = 'aptos-framework'
+
+[dependencies.AptosToken]
+git = 'https://github.com/aptos-labs/aptos-framework.git'
+rev = 'main'
+subdir = 'aptos-token'
+
+[addresses]
+emoji_coin = "_"
