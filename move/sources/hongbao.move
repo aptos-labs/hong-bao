@@ -321,9 +321,10 @@ module addr::hongbao {
             );
         };
 
-        let num_recipient_buckets = if (num_envelopes > 20) { 5 }
-        else if (num_envelopes > 200) { 50 }
-        else { 1 };
+        let num_recipient_buckets =
+            if (num_envelopes > 20) { 5 }
+            else if (num_envelopes > 200) { 50 }
+            else { 1 };
 
         // Create the Gift itself.
         let gift = Gift {
@@ -355,7 +356,8 @@ module addr::hongbao {
         // Deposit the funds from the caller into the FA store owned by the gift.
         let gift_address = object::address_from_constructor_ref(constructor_ref);
 
-        let primary_store = primary_fungible_store::create_primary_store(gift_address, fa_metadata);
+        let primary_store =
+            primary_fungible_store::create_primary_store(gift_address, fa_metadata);
         fungible_asset::upgrade_store_to_concurrent(&gift_signer, primary_store);
         primary_fungible_store::deposit(gift_address, fa);
 
