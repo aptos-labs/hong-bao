@@ -435,7 +435,6 @@ module addr::hongbao {
                         remaining_packets = remaining_packets - 1;
                     };
                     let amount = envelopes.pop_back();
-                    aptos_std::debug::print(&envelopes);
                     gift_.parallel_buckets.add_many_evenly(
                         envelopes, randomness::u64_integer()
                     );
@@ -445,7 +444,6 @@ module addr::hongbao {
                 }
             };
 
-        aptos_std::debug::print(&aggregator_v2::read(&gift_.num_envelopes_remaining));
         // Subtract the amount from the aggregator.
         aggregator_v2::sub(&mut gift_.coins_remaining, amount);
 
