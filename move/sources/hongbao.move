@@ -322,8 +322,8 @@ module addr::hongbao {
         };
 
         let num_recipient_buckets =
-            if (num_envelopes > 20) { 5 }
-            else if (num_envelopes > 200) { 50 }
+            if (num_envelopes > 200) { 20 }
+            else if (num_envelopes > 20) { 5 }
             else { 1 };
 
         // Create the Gift itself.
