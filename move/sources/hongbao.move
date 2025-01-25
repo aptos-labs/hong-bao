@@ -315,9 +315,77 @@ module addr::hongbao {
         public_key_bytes: vector<u8>
     ) acquires Gift {
         let caller_address = signer::address_of(caller);
+        assert_eligible(caller_address, gift, signed_message_bytes, public_key_bytes);
 
+        // Okay, the user is allowed to snatch a envelope!
         let gift_address = object::object_address(&gift);
         let gift_ = borrow_global_mut<Gift>(gift_address);
+        let (amount, remaining_amount, num_remaining_envelopes) = get_amounts(gift_address, gift_);
+
+        // Get a gift signer so we can distribute funds.
+        let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
+
+        // Transfer the amount from the FA store.
+        transfer_gift(
+            &gift_signer,
+            gift_.fa_metadata,
+            caller_address,
+            amount
+        );
+
+        mark_claimed(
+            gift_address,
+            gift_,
+            caller_address,
+            amount,
+            num_remaining_envelopes,
+            remaining_amount
+        );
+    }
+
+    #[randomness]
+    entry fun snatch_envelope_with_coin<CoinType>(
+        caller: &signer,
+        gift: Object<Gift>,
+        signed_message_bytes: vector<u8>,
+        public_key_bytes: vector<u8>
+    ) acquires Gift {
+        let caller_address = signer::address_of(caller);
+        assert_eligible(caller_address, gift, signed_message_bytes, public_key_bytes);
+
+        // Okay, the user is allowed to snatch a envelope!
+        let gift_address = object::object_address(&gift);
+        let gift_ = borrow_global_mut<Gift>(gift_address);
+        let (amount, remaining_amount, num_remaining_envelopes) = get_amounts(gift_address, gift_);
+
+        // Get a gift signer so we can distribute funds.
+        let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
+
+        // Transfer the amount from the FA store.
+        transfer_gift_with_coin<CoinType>(
+            &gift_signer,
+            caller_address,
+            amount
+        );
+
+        mark_claimed(
+            gift_address,
+            gift_,
+            caller_address,
+            amount,
+            num_remaining_envelopes,
+            remaining_amount
+        );
+    }
+
+    inline fun assert_eligible(
+        caller_address: address,
+        gift: Object<Gift>,
+        signed_message_bytes: vector<u8>,
+        public_key_bytes: vector<u8>
+    ) {
+        let gift_address = object::object_address(&gift);
+        let gift_ = borrow_global<Gift>(gift_address);
 
         // Make sure the snatcher is not the person who created the gift.
         assert!(
@@ -360,15 +428,14 @@ module addr::hongbao {
         if (gift_.keyless_only) {
             keyless::assert_is_keyless(caller_address, public_key_bytes);
         };
+    }
 
-        // Okay, the user is allowed to snatch a envelope!
-
-        // Get a gift signer so we can distribute funds.
-        let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
+    fun get_amounts(gift_address: address, gift: &Gift): (u64, u64, u64) {
+        let num_remaining_envelopes = remaining_envelopes(gift);
 
         // Get the remaining amount of funds in the gift.
         let remaining_amount =
-            primary_fungible_store::balance(gift_address, gift_.fa_metadata);
+            primary_fungible_store::balance(gift_address, gift.fa_metadata);
 
         // Determine how much to give the snatcher. They can randomly get anything from
         // nothing to the maximum amount in the gift. This means it's possible for a
@@ -388,16 +455,19 @@ module addr::hongbao {
                 )
             };
 
-        // Transfer the amount from the FA store.
-        transfer_gift(
-            &gift_signer,
-            gift_.fa_metadata,
-            caller_address,
-            amount
-        );
+        return (amount, remaining_amount, num_remaining_envelopes)
+    }
 
+    inline fun mark_claimed(
+        gift_address: address,
+        gift: &mut Gift,
+        caller_address: address,
+        amount: u64,
+        num_remaining_envelopes: u64,
+        remaining_amount: u64
+    ) {
         // Mark the snatcher as having snatched a envelope.
-        match(&mut gift_.recipients) {
+        match(&mut gift.recipients) {
             RecipientsSmartTable { recipients } => recipients.add(caller_address, true)
         };
 
@@ -405,7 +475,7 @@ module addr::hongbao {
             ClaimEnvelopeEvent {
                 gift_address,
                 recipient: caller_address,
-                fa_metadata_address: object::object_address(&gift_.fa_metadata),
+                fa_metadata_address: object::object_address(&gift.fa_metadata),
                 snatched_amount: amount,
                 remaining_envelopes: num_remaining_envelopes - 1,
                 remaining_amount: remaining_amount - amount
@@ -526,6 +596,16 @@ module addr::hongbao {
                 signer, gift_metadata, caller_address, amount
             );
         };
+    }
+
+    inline fun transfer_gift_with_coin<CoinType>(
+        signer: &signer,
+        caller_address: address,
+        amount: u64
+    ) {
+        aptos_account::transfer_coins<CoinType>(
+            signer, caller_address, amount
+        );
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
@@ -1488,6 +1568,69 @@ module addr::hongbao {
             gift,
             vector::empty(),
             vector::empty()
+        );
+    }
+
+    #[
+        test(
+            creator = @0x987,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_coin_happy_path(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                5,
+                100,
+                fa,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        // Snatch as snatcher 1 and assert their balance has increased.
+        snatch_envelope_with_coin<0x1::aptos_coin::AptosCoin>(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher1_address) > DEFAULT_STARTING_BALANCE, 0
+        );
+
+        // Snatch as snatcher 2 and assert their balance has increased.
+        snatch_envelope_with_coin<0x1::aptos_coin::AptosCoin>(
+            &snatcher2,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher2_address) > DEFAULT_STARTING_BALANCE, 0
         );
     }
 
