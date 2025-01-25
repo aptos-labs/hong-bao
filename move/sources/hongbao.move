@@ -16,6 +16,7 @@ module addr::hongbao {
     use aptos_framework::timestamp;
 
     const YEAR_IN_SECONDS: u64 = 31536000;
+    const MAX_ENVELOPES: u64 = 8888;
 
     /// You tried to create a gift with an expiration time in the past.
     const E_GIFT_EXPIRATION_IN_PAST: u64 = 1;
@@ -52,6 +53,18 @@ module addr::hongbao {
 
     /// Only the owner can reclaim the gift before it expires.
     const E_ONLY_OWNER_CAN_RECLAIM_EARLY: u64 = 13;
+
+    /// You tried to create a gift with less coins than envelopes
+    const E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES: u64 = 14;
+
+    /// You tried to create a gift with too many envelopes
+    const E_ENVELOPES_MUST_BE_LESS_THAN_MAX: u64 = 15;
+
+    /// Hongbao is paused
+    const E_PAUSED: u64 = 16;
+
+    /// Not deployer
+    const ENOT_DEPLOYER: u64 = 17;
 
     #[event]
     struct CreateGiftEvent has drop, store {
@@ -135,6 +148,26 @@ module addr::hongbao {
         }
     }
 
+    struct Config has key {
+        paused: bool
+    }
+
+    /// Pause claiming and creating gifts
+    public entry fun set_paused(caller: &signer, pause: bool) acquires Config {
+        assert!(
+            signer::address_of(caller) == @addr,
+            error::permission_denied(ENOT_DEPLOYER)
+        );
+
+        if (exists<Config>(@addr)) {
+            let config = borrow_global_mut<Config>(@addr);
+            config.paused = pause;
+        } else {
+            let config = Config { paused: pause };
+            move_to(caller, config);
+        }
+    }
+
     /// This works for coins / migrated coins. We convert the coin into an FA and then
     /// call create_gift.
     public entry fun create_gift_coin<CoinType>(
@@ -147,7 +180,7 @@ module addr::hongbao {
         message: String,
         paylink_verification_key: Option<vector<u8>>,
         keyless_only: bool
-    ) {
+    ) acquires Config {
         let coin = coin::withdraw<CoinType>(caller, amount);
         let fa = coin::coin_to_fungible_asset(coin);
         create_gift(
@@ -174,7 +207,7 @@ module addr::hongbao {
         message: String,
         paylink_verification_key: Option<vector<u8>>,
         keyless_only: bool
-    ) {
+    ) acquires Config {
         // Withdraw the funds from the user.
         let fa = primary_fungible_store::withdraw(caller, fa_metadata, amount);
         create_gift(
@@ -197,8 +230,11 @@ module addr::hongbao {
         message: String,
         paylink_verification_key: Option<vector<u8>>,
         keyless_only: bool
-    ): Object<Gift> {
+    ): Object<Gift> acquires Config {
         let caller_address = signer::address_of(caller);
+
+        // Make sure Hongbao is not paused
+        assert!(!paused(), error::invalid_state(E_PAUSED));
 
         // Make sure the expiration time is at least 10 seconds in the future.
         assert!(
@@ -221,6 +257,18 @@ module addr::hongbao {
         // Assert the amount is not zero.
         let amount = fungible_asset::amount(&fa);
         assert!(amount > 0, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ZERO));
+
+        // Assert the amount is greater than or equal to the number of envelopes.
+        assert!(
+            amount >= num_envelopes,
+            error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES)
+        );
+
+        // Assert the number of envelopes is less than the max
+        assert!(
+            num_envelopes <= MAX_ENVELOPES,
+            error::invalid_state(E_ENVELOPES_MUST_BE_LESS_THAN_MAX)
+        );
 
         // Assert the message is not empty.
         assert!(
@@ -313,7 +361,7 @@ module addr::hongbao {
         gift: Object<Gift>,
         signed_message_bytes: vector<u8>,
         public_key_bytes: vector<u8>
-    ) acquires Gift {
+    ) acquires Config, Gift {
         let caller_address = signer::address_of(caller);
 
         let gift_address = object::object_address(&gift);
@@ -330,6 +378,9 @@ module addr::hongbao {
             timestamp::now_seconds() < gift_.expiration_time,
             error::invalid_state(E_GIFT_EXPIRED)
         );
+
+        // Make sure Hongbao is not paused
+        assert!(!paused(), error::invalid_state(E_PAUSED));
 
         // Make sure there are still envelopes left.
         let num_remaining_envelopes = remaining_envelopes(gift_);
@@ -529,6 +580,19 @@ module addr::hongbao {
     }
 
     // ////////////////////////////////////////////////////////////////////////////////
+    // View functions
+    // ////////////////////////////////////////////////////////////////////////////////
+
+    #[view]
+    public fun paused(): bool acquires Config {
+        if (exists<Config>(@addr)) {
+            let config = borrow_global<Config>(@addr);
+            return config.paused
+        };
+        false
+    }
+
+    // ////////////////////////////////////////////////////////////////////////////////
     // Tests
     // ////////////////////////////////////////////////////////////////////////////////
 
@@ -550,7 +614,7 @@ module addr::hongbao {
     #[test_only]
     const E_TEST_FAILURE: u64 = 100000;
     #[test_only]
-    const DEFAULT_STARTING_BALANCE: u64 = 1000;
+    const DEFAULT_STARTING_BALANCE: u64 = 10000;
 
     #[test_only]
     public fun set_up_testing_time_env(
@@ -619,7 +683,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -683,7 +747,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) {
+    ) acquires Config {
         initialize(
             &creator,
             &snatcher1,
@@ -700,6 +764,84 @@ module addr::hongbao {
             &creator,
             5,
             0,
+            fa,
+            string::utf8(b"hey friends"),
+            option::none(),
+            false
+        );
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196622, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_amount_less_than_envelopes(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Config {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift. This should fail because the number of envelopes is bigger than amount.
+        create_gift(
+            &creator,
+            5,
+            100,
+            fa,
+            string::utf8(b"hey friends"),
+            option::none(),
+            false
+        );
+    }
+
+    #[
+        test(
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196623, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_envelopes_greater_than_max(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Config {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, MAX_ENVELOPES + 10);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift. This should fail because the num of envelopes is bigger than max.
+        create_gift(
+            &creator,
+            MAX_ENVELOPES + 1,
+            100,
             fa,
             string::utf8(b"hey friends"),
             option::none(),
@@ -725,7 +867,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -787,7 +929,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -843,7 +985,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -891,7 +1033,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -952,7 +1094,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1012,7 +1154,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1070,7 +1212,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1124,7 +1266,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1177,7 +1319,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1231,7 +1373,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) {
+    ) acquires Config {
         initialize(
             &creator,
             &snatcher1,
@@ -1269,7 +1411,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) {
+    ) acquires Config {
         initialize(
             &creator,
             &snatcher1,
@@ -1309,7 +1451,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) {
+    ) acquires Config {
         initialize(
             &creator,
             &snatcher1,
@@ -1350,7 +1492,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1401,7 +1543,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1460,7 +1602,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Gift {
+    ) acquires Config, Gift {
         initialize(
             &creator,
             &snatcher1,
@@ -1488,6 +1630,132 @@ module addr::hongbao {
             gift,
             vector::empty(),
             vector::empty()
+        );
+    }
+
+    #[
+        test(
+            deployer = @addr,
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196624, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_paused_create(
+        deployer: signer,
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Config, Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        set_paused(&deployer, true);
+        assert!(paused() == true, 0);
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                5,
+                100,
+                fa,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        // Snatch as snatcher 1 and assert their balance has increased.
+        snatch_envelope(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher1_address) > DEFAULT_STARTING_BALANCE, 0
+        );
+
+        // Snatch as snatcher 2 and assert their balance has increased.
+        snatch_envelope(
+            &snatcher2,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher2_address) > DEFAULT_STARTING_BALANCE, 0
+        );
+    }
+
+    #[
+        test(
+            deployer = @addr,
+            creator = @0x123,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[expected_failure(abort_code = 196624, location = Self)]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_paused_claim(
+        deployer: signer,
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Config, Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+        let snatcher1_address = signer::address_of(&snatcher1);
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let fa = coin::coin_to_fungible_asset(coin);
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                5,
+                100,
+                fa,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        set_paused(&deployer, true);
+        assert!(paused() == true, 0);
+
+        // Snatch as snatcher 1 and assert their balance has increased.
+        snatch_envelope(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher1_address) > DEFAULT_STARTING_BALANCE, 0
         );
     }
 
