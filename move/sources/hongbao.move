@@ -63,6 +63,9 @@ module addr::hongbao {
     /// Hongbao is paused
     const E_PAUSED: u64 = 16;
 
+    /// Not deployer
+    const ENOT_DEPLOYER: u64 = 17;
+
     #[event]
     struct CreateGiftEvent has drop, store {
         gift_address: address,
@@ -148,16 +151,19 @@ module addr::hongbao {
     struct Config has key {
         paused: bool
     }
-    
+
     /// Pause claiming and creating gifts
     public entry fun set_paused(caller: &signer, pause: bool) acquires Config {
+        assert!(
+            signer::address_of(caller) == @addr,
+            error::permission_denied(ENOT_DEPLOYER)
+        );
+
         if (exists<Config>(@addr)) {
             let config = borrow_global_mut<Config>(@addr);
             config.paused = pause;
         } else {
-            let config = Config {
-                paused: pause,
-            };
+            let config = Config { paused: pause };
             move_to(caller, config);
         }
     }
@@ -228,10 +234,7 @@ module addr::hongbao {
         let caller_address = signer::address_of(caller);
 
         // Make sure Hongbao is not paused
-        assert!(
-            !paused(),
-            error::invalid_state(E_PAUSED)
-        );
+        assert!(!paused(), error::invalid_state(E_PAUSED));
 
         // Make sure the expiration time is at least 10 seconds in the future.
         assert!(
@@ -256,10 +259,16 @@ module addr::hongbao {
         assert!(amount > 0, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ZERO));
 
         // Assert the amount is greater than or equal to the number of envelopes.
-        assert!(amount >= num_envelopes, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES));
+        assert!(
+            amount >= num_envelopes,
+            error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES)
+        );
 
         // Assert the number of envelopes is less than the max
-        assert!(num_envelopes <= MAX_ENVELOPES, error::invalid_state(E_ENVELOPES_MUST_BE_LESS_THAN_MAX));
+        assert!(
+            num_envelopes <= MAX_ENVELOPES,
+            error::invalid_state(E_ENVELOPES_MUST_BE_LESS_THAN_MAX)
+        );
 
         // Assert the message is not empty.
         assert!(
@@ -371,10 +380,7 @@ module addr::hongbao {
         );
 
         // Make sure Hongbao is not paused
-        assert!(
-            !paused(),
-            error::invalid_state(E_PAUSED)
-        );
+        assert!(!paused(), error::invalid_state(E_PAUSED));
 
         // Make sure there are still envelopes left.
         let num_remaining_envelopes = remaining_envelopes(gift_);
@@ -1405,7 +1411,7 @@ module addr::hongbao {
         snatcher1: signer,
         snatcher2: signer,
         aptos_framework: signer
-    ) acquires Config{
+    ) acquires Config {
         initialize(
             &creator,
             &snatcher1,
