@@ -19,7 +19,7 @@ module addr::parallel_buckets {
     public fun add<V: drop + store>(
         self: &mut ParallelBuckets<V>,
         value: V,
-        random: u64,
+        random: u64
     ) {
         let bucket_index = random % self.num_buckets;
         let bucket = self.buckets.borrow_mut(bucket_index);
@@ -30,7 +30,7 @@ module addr::parallel_buckets {
     public fun add_many_evenly<V: drop + store>(
         self: &mut ParallelBuckets<V>,
         values: vector<V>,
-        random: u64,
+        random: u64
     ) {
         let bucket_index = random % self.num_buckets;
         let me = self;
@@ -41,10 +41,8 @@ module addr::parallel_buckets {
         });
     }
 
-
     public fun pop<V: drop + store>(
-        self: &mut ParallelBuckets<V>,
-        random: u64,
+        self: &mut ParallelBuckets<V>, random: u64
     ): option::Option<V> {
         let bucket_index = random % self.num_buckets;
         let buckets_left = self.num_buckets;
@@ -65,13 +63,8 @@ module addr::parallel_buckets {
         }
     }
 
-    public fun destroy<V: drop + store>(
-        self: ParallelBuckets<V>,
-    ) {
-        let ParallelBuckets<V> {
-            num_buckets,
-            buckets
-        } = self;
+    public fun destroy<V: drop + store>(self: ParallelBuckets<V>) {
+        let ParallelBuckets<V> { num_buckets, buckets } = self;
 
         // Drop all the stuff in side
         for (i in 0..num_buckets) {
