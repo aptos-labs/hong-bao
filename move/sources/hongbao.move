@@ -1,26 +1,34 @@
+/// Many entry functions that operate against an existing gift require a CoinType
+/// generic type param. If you know the Gift contains an FA you can use
+/// a dummy CoinType, e.g. something that isn't even a coin like
+/// `aptos_framework::timestamp::CurrentTimeMicroseconds`. If the gift contains a
+/// Coin, you need the real CoinType, e.g. `aptos_framework::coin::AptosCoin`.
+///
+/// We make the asset type readily available to the frontend by indexing it, since we
+/// emit the asset type in the CreateGiftEvent.
+
 module addr::hongbao {
     use addr::keyless;
     use addr::paylink;
     use addr::dirichlet;
+    use addr::smarter_table::{Self, SmarterTable};
+    use addr::parallel_buckets::{Self, ParallelBuckets};
     use std::error;
     use std::option::Option;
     use std::signer;
     use std::string::String;
     use std::vector;
     use aptos_std::math64;
+    use aptos_std::type_info;
+    use aptos_std::string_utils;
     use aptos_framework::aggregator_v2::{Self, Aggregator, AggregatorSnapshot};
-    use aptos_framework::coin;
-    use aptos_framework::aptos_account;
+    use aptos_framework::coin::{Self, Coin};
     use aptos_framework::event;
     use aptos_framework::fungible_asset::{Self, FungibleAsset, Metadata};
     use aptos_framework::object::{Self, Object, DeleteRef, ExtendRef, TransferRef};
     use aptos_framework::primary_fungible_store;
     use aptos_framework::randomness;
     use aptos_framework::timestamp;
-    use addr::smarter_table::{Self, SmarterTable};
-    use addr::parallel_buckets::{Self, ParallelBuckets};
-
-    use emoji_coin::coin_factory::Emojicoin;
 
     const YEAR_IN_SECONDS: u64 = 31536000;
     const MAX_ENVELOPES: u64 = 8888;
@@ -80,7 +88,10 @@ module addr::hongbao {
         creator: address,
         num_envelopes: u64,
         expiration_time: u64,
-        fa_metadata_address: address,
+        // This will either be the CoinType or the FA metadata address.
+        asset_type: String,
+        // True if `asset_type` is a FA metadata address, false if it's a CoinType.
+        is_fa: bool,
         amount: u64,
         message: String,
         // Since we don't have support for "constants" in no code indexing we instead
@@ -96,7 +107,10 @@ module addr::hongbao {
     struct ClaimEnvelopeEvent has drop, store {
         gift_address: address,
         recipient: address,
-        fa_metadata_address: address,
+        // This will either be the CoinType or the FA metadata address.
+        asset_type: String,
+        // True if `asset_type` is a FA metadata address, false if it's a CoinType.
+        is_fa: bool,
         snatched_amount: u64,
         // Useful for indexing.
         remaining_envelopes: AggregatorSnapshot<u64>,
@@ -113,10 +127,11 @@ module addr::hongbao {
     }
 
     /// This contains all the information relevant to a single Gift. A single Gift is
-    /// disbursed as many envelopes, matching how it works irl / in other apps. The
-    /// actual asset isn't here. Instead, this Gift goes into an object that also owns
-    /// a fungible store.
-    struct Gift has key, store {
+    /// disbursed as many envelopes, matching how it works irl / in other apps.
+    ///
+    /// See the comment for GiftAsset for more details about how the asset is stored
+    /// and why we need the generic type param.
+    struct Gift<phantom CoinType> has key, store {
         /// These are all the addresses that have taken a envelope from this gift.
         /// The value doesn't mean anything, we only care about the keys. We just use
         /// this because there is no set type in Move.
@@ -137,8 +152,8 @@ module addr::hongbao {
         /// reclaim the funds. Afterwards, anyone can call reclaim. Unixtime in seconds.
         expiration_time: u64,
 
-        /// This tells us what FA this gift holds.
-        fa_metadata: Object<Metadata>,
+        /// This tells us what asset this gift holds.
+        asset: GiftAsset<CoinType>,
 
         /// A message the creator wants to show to the snatchers.
         message: String,
@@ -158,6 +173,34 @@ module addr::hongbao {
         extend_ref: ExtendRef,
         transfer_ref: TransferRef,
         delete_ref: DeleteRef
+    }
+
+    /// This takes a generic type param for the coin type, but if the enum variant is
+    /// FungibleAsset, the type param is ignored.
+    enum GiftAsset<phantom CoinType> has store {
+        /// With Coin, we create and store the actual Coin on the gift. We need to do
+        /// it this way so the caller doesn't have to pass in the coin type to claim
+        /// funds from the gift. We can't use a CoinStore because there are no
+        /// functions provided by the coin module for doing operations with just a
+        /// CoinStore.
+        Coin {
+            coin: Coin<CoinType>
+        },
+        /// With FungibleAsset, we store just the FA metadata on the gift, we don't
+        /// need to create a secondary fungible store for it.
+        FungibleAsset {
+            fa_metadata: Object<Metadata>
+        }
+    }
+
+    /// Only used to simplifying the create gift flow. This is not `store` on purpose.
+    enum CreateGiftAssetArg<CoinType> {
+        Coin {
+            coin: Coin<CoinType>
+        },
+        FungibleAsset {
+            fa: FungibleAsset
+        }
     }
 
     // We use an enum so we can update to BigOrderedMap later.
@@ -201,12 +244,11 @@ module addr::hongbao {
         keyless_only: bool
     ) acquires Config {
         let coin = coin::withdraw<CoinType>(caller, amount);
-        let fa = coin::coin_to_fungible_asset(coin);
         create_gift(
             caller,
             num_envelopes,
             expiration_time,
-            fa,
+            CreateGiftAssetArg::Coin { coin },
             message,
             paylink_verification_key,
             keyless_only
@@ -227,30 +269,46 @@ module addr::hongbao {
         paylink_verification_key: Option<vector<u8>>,
         keyless_only: bool
     ) acquires Config {
-        // Withdraw the funds from the user.
         let fa = primary_fungible_store::withdraw(caller, fa_metadata, amount);
         create_gift(
             caller,
             num_envelopes,
             expiration_time,
-            fa,
+            // We use a dummy CoinType here.
+            CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa },
             message,
             paylink_verification_key,
             keyless_only
         );
     }
 
-    public fun create_gift(
+    /// CoinType will be just a dummy if we're using FA.
+    public fun create_gift<CoinType>(
         caller: &signer,
         num_envelopes: u64,
         expiration_time: u64,
         // The asset we took from the caller.
-        fa: FungibleAsset,
+        asset_arg: CreateGiftAssetArg<CoinType>,
         message: String,
         paylink_verification_key: Option<vector<u8>>,
         keyless_only: bool
-    ): Object<Gift> acquires Config {
+    ): Object<Gift<CoinType>> acquires Config {
         let caller_address = signer::address_of(caller);
+
+        let amount =
+            match(&asset_arg) {
+                CreateGiftAssetArg::Coin { coin } => coin::value(coin),
+                CreateGiftAssetArg::FungibleAsset { fa } => fungible_asset::amount(fa)
+            };
+
+        // Assert the amount is not zero.
+        assert!(amount > 0, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ZERO));
+
+        // Assert the amount is greater than or equal to the number of envelopes.
+        assert!(
+            amount >= num_envelopes,
+            error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES)
+        );
 
         // Make sure Hongbao is not paused
         assert!(!paused(), error::invalid_state(E_PAUSED));
@@ -273,16 +331,6 @@ module addr::hongbao {
             error::invalid_state(E_MUST_CREATE_AT_LEAST_ONE_ENVELOPE)
         );
 
-        // Assert the amount is not zero.
-        let amount = fungible_asset::amount(&fa);
-        assert!(amount > 0, error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ZERO));
-
-        // Assert the amount is greater than or equal to the number of envelopes.
-        assert!(
-            amount >= num_envelopes,
-            error::invalid_state(E_AMOUNT_MUST_BE_GREATER_THAN_ENVELOPES)
-        );
-
         // Assert the number of envelopes is less than the max
         assert!(
             num_envelopes <= MAX_ENVELOPES,
@@ -298,6 +346,13 @@ module addr::hongbao {
         // Assert the message is not too long.
         assert!(message.length() < 280, error::invalid_state(E_MESSAGE_TOO_LONG));
 
+        // If the paylink verification key is set, validate it.
+        if (paylink_verification_key.is_some()) {
+            paylink::assert_valid_paylink_verification_key(
+                paylink_verification_key.borrow()
+            );
+        };
+
         // Create an object to hold the gift.
         let constructor_ref = &object::create_object(caller_address);
 
@@ -310,15 +365,37 @@ module addr::hongbao {
         // object too.
         let delete_ref = object::generate_delete_ref(constructor_ref);
 
-        // We store this so we know what asset we're dealing with.
-        let fa_metadata = fungible_asset::metadata_from_asset(&fa);
+        let gift_signer = object::generate_signer(constructor_ref);
+        let gift_address = object::address_from_constructor_ref(constructor_ref);
 
-        // If the paylink verification key is set, validate it.
-        if (paylink_verification_key.is_some()) {
-            paylink::assert_valid_paylink_verification_key(
-                paylink_verification_key.borrow()
-            );
-        };
+        // If we're dealing with FA, we still need to withdraw the funds from the
+        // caller and store them in the primary FA store for the gift.
+        let asset =
+            match(asset_arg) {
+                CreateGiftAssetArg::FungibleAsset { fa } => {
+                    // Get the FA metadata.
+                    let fa_metadata = fungible_asset::metadata_from_asset(&fa);
+
+                    // Deposit the funds from the caller into the FA store owned by the gift.
+                    let primary_store = primary_fungible_store::create_primary_store(
+                        gift_address, fa_metadata
+                    );
+                    fungible_asset::upgrade_store_to_concurrent(
+                        &gift_signer, primary_store
+                    );
+                    primary_fungible_store::deposit(gift_address, fa);
+
+                    // Return the FA metadata.
+                    GiftAsset::FungibleAsset { fa_metadata }
+                },
+                CreateGiftAssetArg::Coin { coin } => {
+                    // Return the coin.
+                    GiftAsset::Coin { coin }
+                }
+            };
+
+        // This is for the event.
+        let (asset_type, is_fa) = get_types_for_event(&asset);
 
         let num_recipient_buckets =
             if (num_envelopes > 500) { 40 }
@@ -339,7 +416,7 @@ module addr::hongbao {
                 amount
             ),
             expiration_time,
-            fa_metadata,
+            asset,
             message,
             paylink_verification_key,
             keyless_only,
@@ -350,16 +427,7 @@ module addr::hongbao {
         };
 
         // Store it on the object.
-        let gift_signer = object::generate_signer(constructor_ref);
         move_to(&gift_signer, gift);
-
-        // Deposit the funds from the caller into the FA store owned by the gift.
-        let gift_address = object::address_from_constructor_ref(constructor_ref);
-
-        let primary_store =
-            primary_fungible_store::create_primary_store(gift_address, fa_metadata);
-        fungible_asset::upgrade_store_to_concurrent(&gift_signer, primary_store);
-        primary_fungible_store::deposit(gift_address, fa);
 
         event::emit(
             CreateGiftEvent {
@@ -367,7 +435,8 @@ module addr::hongbao {
                 creator: caller_address,
                 num_envelopes,
                 expiration_time,
-                fa_metadata_address: object::object_address(&fa_metadata),
+                asset_type,
+                is_fa,
                 amount,
                 message,
                 is_reclaimed: false,
@@ -378,6 +447,20 @@ module addr::hongbao {
 
         // Return the gift object. This is useful for testing.
         object::object_from_constructor_ref(constructor_ref)
+    }
+
+    /// This is used to emit the asset type in the CreateGiftEvent. See the comments
+    /// in `CreateGiftEvent` for more details about the return values here.
+    fun get_types_for_event<CoinType>(gift_asset: &GiftAsset<CoinType>): (String, bool) {
+        match(gift_asset) {
+            GiftAsset::Coin { coin: _ } =>(type_info::type_name<CoinType>(), false),
+            GiftAsset::FungibleAsset { fa_metadata } =>(
+                string_utils::to_string_with_canonical_addresses(
+                    &object::object_address(fa_metadata)
+                ),
+                true
+            )
+        }
     }
 
     #[randomness]
@@ -394,16 +477,17 @@ module addr::hongbao {
     ///
     /// This is a private entry function because public entry functions with randomness
     /// can possibly be exploited.
-    entry fun snatch_envelope(
+    entry fun snatch_envelope<CoinType>(
         caller: &signer,
-        gift: Object<Gift>,
+        // Dummy type.
+        gift: Object<Gift<CoinType>>,
         signed_message_bytes: vector<u8>,
         public_key_bytes: vector<u8>
     ) acquires Config, Gift {
         let caller_address = signer::address_of(caller);
 
         let gift_address = object::object_address(&gift);
-        let gift_ = borrow_global_mut<Gift>(gift_address);
+        let gift_ = borrow_global_mut<Gift<CoinType>>(gift_address);
 
         // Make sure the snatcher is not the person who created the gift.
         assert!(
@@ -471,7 +555,12 @@ module addr::hongbao {
         // If there is only 1 envelope left, the snatcher gets whatever is left.
         let amount =
             if (!aggregator_v2::is_at_least(&gift_.num_envelopes_remaining, 1)) {
-                primary_fungible_store::balance(gift_address, gift_.fa_metadata)
+                match(&gift_.asset) {
+                    GiftAsset::Coin { coin } => coin::value(coin),
+                    GiftAsset::FungibleAsset { fa_metadata } => primary_fungible_store::balance(
+                        gift_address, *fa_metadata
+                    )
+                }
             } else {
                 // Try to get one from our bucket
                 let envelope_amount =
@@ -481,7 +570,12 @@ module addr::hongbao {
                     // THIS IS WHAT FULLY BREAKS PARALLELISM
                     let envelopes = vector::empty();
                     let remaining_amount =
-                        primary_fungible_store::balance(gift_address, gift_.fa_metadata);
+                        match(&gift_.asset) {
+                            GiftAsset::Coin { coin } => coin::value(coin),
+                            GiftAsset::FungibleAsset { fa_metadata } => primary_fungible_store::balance(
+                                gift_address, *fa_metadata
+                            )
+                        };
                     let remaining_packets = remaining_envelopes(gift_);
                     let to_generate =
                         math64::min(remaining_packets, RANDOM_ENTRIES_TO_PREGENERATE);
@@ -510,7 +604,7 @@ module addr::hongbao {
         // Transfer the amount from the FA store.
         transfer_gift(
             &gift_signer,
-            gift_.fa_metadata,
+            &mut gift_.asset,
             caller_address,
             amount
         );
@@ -520,11 +614,14 @@ module addr::hongbao {
             RecipientsSmartTable { recipients } => recipients.add(caller_address, true)
         };
 
+        let (asset_type, is_fa) = get_types_for_event(&gift_.asset);
+
         event::emit(
             ClaimEnvelopeEvent {
                 gift_address,
                 recipient: caller_address,
-                fa_metadata_address: object::object_address(&gift_.fa_metadata),
+                asset_type,
+                is_fa,
                 snatched_amount: amount,
                 remaining_envelopes: aggregator_v2::snapshot(
                     &gift_.num_envelopes_remaining
@@ -539,9 +636,9 @@ module addr::hongbao {
     /// there are no envelopes left.
     ///
     /// To reclaim early as the gift owner, call `reclaim_gift_as_owner`.
-    public entry fun reclaim_gift(gift: Object<Gift>) acquires Gift {
+    public entry fun reclaim_gift<CoinType>(gift: Object<Gift<CoinType>>) acquires Gift {
         let gift_address = object::object_address(&gift);
-        let gift_ = borrow_global<Gift>(gift_address);
+        let gift_ = borrow_global<Gift<CoinType>>(gift_address);
 
         // Make sure either the gift has expired or there are no envelopes left.
         assert!(
@@ -559,8 +656,8 @@ module addr::hongbao {
 
     /// When called this sends the remaining balance back to the owner. Whoever calls
     /// this gets the gas refund. The owner can call this at any time.
-    public entry fun reclaim_gift_as_owner(
-        caller: &signer, gift: Object<Gift>
+    public entry fun reclaim_gift_as_owner<CoinType>(
+        caller: &signer, gift: Object<Gift<CoinType>>
     ) acquires Gift {
         let caller_address = signer::address_of(caller);
         assert!(
@@ -570,23 +667,29 @@ module addr::hongbao {
         reclaim_gift_inner(gift);
     }
 
-    fun reclaim_gift_inner(gift: Object<Gift>) acquires Gift {
+    fun reclaim_gift_inner<CoinType>(gift: Object<Gift<CoinType>>) acquires Gift {
         let gift_owner_address = object::owner(gift);
 
         // We destroy the object at the end of this function, so we don't just borrow
         // the gift, we remove it entirely.
         let gift_address = object::object_address(&gift);
-        let gift_ = move_from<Gift>(gift_address);
+        let gift_ = move_from<Gift<CoinType>>(gift_address);
 
         // Get the remaining balance.
-        let balance = primary_fungible_store::balance(gift_address, gift_.fa_metadata);
+        let balance =
+            match(&gift_.asset) {
+                GiftAsset::Coin { coin } => coin::value(coin),
+                GiftAsset::FungibleAsset { fa_metadata } => primary_fungible_store::balance(
+                    gift_address, *fa_metadata
+                )
+            };
 
         if (balance > 0) {
             // Transfer the balance back to the owner of the gift.
             let gift_signer = object::generate_signer_for_extending(&gift_.extend_ref);
             transfer_gift(
                 &gift_signer,
-                gift_.fa_metadata,
+                &mut gift_.asset,
                 gift_owner_address,
                 balance
             );
@@ -597,7 +700,7 @@ module addr::hongbao {
             recipients,
             num_envelopes: _num_envelopes,
             expiration_time: _expiration_time,
-            fa_metadata: _fa_metadata,
+            asset,
             message: _message,
             paylink_verification_key: _paylink_verification_key,
             num_envelopes_remaining: _,
@@ -615,6 +718,11 @@ module addr::hongbao {
             RecipientsSmartTable { recipients } => recipients.destroy()
         };
 
+        match(asset) {
+            GiftAsset::Coin { coin } => coin::destroy_zero(coin),
+            GiftAsset::FungibleAsset { fa_metadata: _ } => {}
+        };
+
         // Delete the object.
         object::delete(delete_ref);
 
@@ -629,7 +737,7 @@ module addr::hongbao {
     }
 
     /// Get the number of remaining envelopes in the gift.
-    inline fun remaining_envelopes(gift_: &Gift): u64 {
+    inline fun remaining_envelopes<CoinType>(gift_: &Gift<CoinType>): u64 {
         let len =
             match(&gift_.recipients) {
                 RecipientsSmartTable { recipients } => recipients.size()
@@ -637,26 +745,22 @@ module addr::hongbao {
         gift_.num_envelopes - len
     }
 
-    inline fun transfer_gift(
-        signer: &signer,
-        gift_metadata: Object<Metadata>,
+    inline fun transfer_gift<CoinType>(
+        gift_signer: &signer,
+        gift_asset: &mut GiftAsset<CoinType>,
         caller_address: address,
         amount: u64
     ) {
-        let fa_metadata_address = object::object_address(&gift_metadata);
-        // for hongbao and APT, only transfer coin to avoid many new FA's going around
-        if (fa_metadata_address == @0xa) {
-            aptos_account::transfer_coins<0x1::aptos_coin::AptosCoin>(
-                signer, caller_address, amount
-            );
-        } else if (fa_metadata_address
-            == @0x180e877b151107d7d180545c2fdb373578740872a59071f636c62bd60a6b249d) {
-            // Hongbao emoji on mainnet
-            aptos_account::transfer_coins<Emojicoin>(signer, caller_address, amount);
-        } else {
-            primary_fungible_store::transfer(
-                signer, gift_metadata, caller_address, amount
-            );
+        match(gift_asset) {
+            GiftAsset::Coin { coin } => {
+                let c = coin::extract(coin, amount);
+                coin::deposit(caller_address, c);
+            },
+            GiftAsset::FungibleAsset { fa_metadata } => {
+                primary_fungible_store::transfer(
+                    gift_signer, *fa_metadata, caller_address, amount
+                );
+            }
         };
     }
 
@@ -678,7 +782,7 @@ module addr::hongbao {
     // ////////////////////////////////////////////////////////////////////////////////
 
     #[test_only]
-    use aptos_std::option;
+    use std::option;
     #[test_only]
     use aptos_std::string;
     #[test_only]
@@ -773,6 +877,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -780,7 +885,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 100,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -807,6 +912,91 @@ module addr::hongbao {
         assert!(
             coin::balance<AptosCoin>(snatcher2_address) > DEFAULT_STARTING_BALANCE, 0
         );
+
+        // Assert that the users got FA, their primary fungible store balances should
+        // have increased.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1);
+        let fa = coin::coin_to_fungible_asset(coin);
+        let fa_metadata = fungible_asset::metadata_from_asset(&fa);
+        assert!(primary_fungible_store::balance(snatcher1_address, fa_metadata) > 0, 0);
+        assert!(primary_fungible_store::balance(snatcher2_address, fa_metadata) > 0, 0);
+
+        // Send the FA back to the creator to satisfy the drop check.
+        primary_fungible_store::deposit(signer::address_of(&creator), fa);
+    }
+
+    #[
+        test(
+            creator = @0x987,
+            snatcher1 = @0x100,
+            snatcher2 = @0x101,
+            aptos_framework = @aptos_framework
+        )
+    ]
+    #[lint::allow_unsafe_randomness]
+    public entry fun test_basic_happy_path_coin(
+        creator: signer,
+        snatcher1: signer,
+        snatcher2: signer,
+        aptos_framework: signer
+    ) acquires Config, Gift {
+        initialize(
+            &creator,
+            &snatcher1,
+            &snatcher2,
+            &aptos_framework
+        );
+        let snatcher1_address = signer::address_of(&snatcher1);
+        let snatcher2_address = signer::address_of(&snatcher2);
+
+        // Get funds for the gift.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1000);
+        let asset_arg = CreateGiftAssetArg::Coin { coin };
+
+        // Create the gift.
+        let gift =
+            create_gift(
+                &creator,
+                5,
+                100,
+                asset_arg,
+                string::utf8(b"hey friends"),
+                option::none(),
+                false
+            );
+
+        // Snatch as snatcher 1 and assert their balance has increased.
+        snatch_envelope(
+            &snatcher1,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher1_address) > DEFAULT_STARTING_BALANCE, 0
+        );
+
+        // Snatch as snatcher 2 and assert their balance has increased.
+        snatch_envelope(
+            &snatcher2,
+            gift,
+            vector::empty(),
+            vector::empty()
+        );
+        assert!(
+            coin::balance<AptosCoin>(snatcher2_address) > DEFAULT_STARTING_BALANCE, 0
+        );
+
+        // Assert that the users actually got just coin, their primary fungible store
+        // balances should not have increased.
+        let coin = coin::withdraw<AptosCoin>(&creator, 1);
+        let fa = coin::coin_to_fungible_asset(coin);
+        let fa_metadata = fungible_asset::metadata_from_asset(&fa);
+        assert!(primary_fungible_store::balance(snatcher1_address, fa_metadata) == 0, 0);
+        assert!(primary_fungible_store::balance(snatcher2_address, fa_metadata) == 0, 0);
+
+        // Send the FA back to the creator to satisfy the drop check.
+        primary_fungible_store::deposit(signer::address_of(&creator), fa);
     }
 
     #[
@@ -835,13 +1025,14 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift. This should fail because the expiration time is in the past.
         create_gift(
             &creator,
             5,
             0,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::none(),
             false
@@ -874,13 +1065,14 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift. This should fail because the number of envelopes is bigger than amount.
         create_gift(
             &creator,
             5,
             100,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::none(),
             false
@@ -913,13 +1105,14 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, MAX_ENVELOPES + 10);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift. This should fail because the num of envelopes is bigger than max.
         create_gift(
             &creator,
             MAX_ENVELOPES + 1,
             100,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::none(),
             false
@@ -955,6 +1148,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -962,7 +1156,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1017,6 +1211,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1024,7 +1219,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1073,6 +1268,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1080,7 +1276,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1121,6 +1317,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1128,7 +1325,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1182,6 +1379,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1189,7 +1387,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1214,7 +1412,12 @@ module addr::hongbao {
         reclaim_gift(gift);
 
         // See that the gift is deleted.
-        assert!(!object::object_exists<Gift>(gift_address), E_TEST_FAILURE);
+        assert!(
+            !object::object_exists<Gift<aptos_framework::timestamp::CurrentTimeMicroseconds>>(
+                gift_address
+            ),
+            E_TEST_FAILURE
+        );
     }
 
     #[
@@ -1242,6 +1445,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1249,7 +1453,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1271,7 +1475,12 @@ module addr::hongbao {
         reclaim_gift(gift);
 
         // See that the gift is deleted.
-        assert!(!object::object_exists<Gift>(gift_address), E_TEST_FAILURE);
+        assert!(
+            !object::object_exists<Gift<aptos_framework::timestamp::CurrentTimeMicroseconds>>(
+                gift_address
+            ),
+            E_TEST_FAILURE
+        );
     }
 
     #[
@@ -1300,6 +1509,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1307,7 +1517,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1354,6 +1564,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1361,7 +1572,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1407,6 +1618,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1414,7 +1626,7 @@ module addr::hongbao {
                 &creator,
                 2,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1460,13 +1672,14 @@ module addr::hongbao {
 
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // This should fail with E_MUST_CREATE_AT_LEAST_ONE_ENVELOPE
         create_gift(
             &creator,
             0,
             25,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::none(),
             false
@@ -1498,6 +1711,7 @@ module addr::hongbao {
 
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // This should fail because the expiration time is too far out.
         let now = timestamp::now_seconds();
@@ -1506,7 +1720,7 @@ module addr::hongbao {
             &creator,
             5,
             too_far_expiration,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::none(),
             false
@@ -1543,11 +1757,13 @@ module addr::hongbao {
         // See that creating a gift fails.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
+
         create_gift(
             &creator,
             5,
             25,
-            fa,
+            asset_arg,
             string::utf8(b"hey friends"),
             option::some(verification_key),
             false
@@ -1585,12 +1801,14 @@ module addr::hongbao {
         // Create a Gift that requires that you know the paylink private key.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
+
         let gift =
             create_gift(
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::some(verification_key),
                 false
@@ -1637,12 +1855,14 @@ module addr::hongbao {
         // Create a Gift that requires that you know the paylink private key.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
+
         let gift =
             create_gift(
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::some(verification_key),
                 false
@@ -1690,15 +1910,17 @@ module addr::hongbao {
         // Create a Gift that only keyless accounts can snatch
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
+
         let gift =
             create_gift(
                 &creator,
                 5,
                 25,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
-                true /* keyless_only */
+                true
             );
 
         // This should fail because the empty vector is not a valid public key.
@@ -1740,6 +1962,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         set_paused(&deployer, true);
         assert!(paused() == true, 0);
@@ -1750,7 +1973,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 100,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false
@@ -1808,6 +2031,7 @@ module addr::hongbao {
         // Get funds for the gift.
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
+        let asset_arg = CreateGiftAssetArg::FungibleAsset<aptos_framework::timestamp::CurrentTimeMicroseconds> { fa };
 
         // Create the gift.
         let gift =
@@ -1815,7 +2039,7 @@ module addr::hongbao {
                 &creator,
                 5,
                 100,
-                fa,
+                asset_arg,
                 string::utf8(b"hey friends"),
                 option::none(),
                 false

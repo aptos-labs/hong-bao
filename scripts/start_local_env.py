@@ -38,7 +38,7 @@ HONGBAO_MODULE = "hongbao"
 
 
 DEFAULT_SUBPROCESS_KWARGS = {
-    "check": True,
+    # "check": True,
     "universal_newlines": True,
     "cwd": "move/",
 }
@@ -177,7 +177,7 @@ def fresh_start(args):
             "--type-args",
             "0x1::aptos_coin::AptosCoin",
             "--args",
-            "u64:1000000000",  # Number of packets
+            "u64:1000",  # Number of packets
             f"u64:{int(time.time() + 60 * 30)}",  # 30 minutes from now
             f"u64:{10 ** 7}",  # 0.1 APT
             "string:Hello friends!",
@@ -187,6 +187,9 @@ def fresh_start(args):
         + move_run_extra,
         **{**DEFAULT_SUBPROCESS_KWARGS, **{"capture_output": True}},
     )
+
+    print(result.stdout)
+    print(result.stderr)
 
     # Get the txn hash of the txn we just submitted.
     txn_hash = json.loads(result.stdout)["Result"]["transaction_hash"]
@@ -199,7 +202,7 @@ def fresh_start(args):
 
     # Get and print the address of the collection we just created.
     for change in data["changes"]:
-        if change["data"].get("type") == f"{DEPLOYER_ADDRESS}::{HONGBAO_MODULE}::Gift":
+        if change["data"].get("type").startswith(f"{DEPLOYER_ADDRESS}::{HONGBAO_MODULE}::Gift"):
             gift_address = change["address"]
             break
     print(f"[Local] Created gift at {gift_address}")
@@ -215,11 +218,12 @@ def fresh_start(args):
             PLAYER1_PROFILE_NAME,
             "--function-id",
             f"{DEPLOYER_PROFILE_NAME}::{HONGBAO_MODULE}::snatch_envelope",
+            "--type-args",
+            "0x1::aptos_coin::AptosCoin",
             "--args",
             f"address:{gift_address}",
             "u8:[]",
             "u8:[]",
-            "--profile-gas",
         ]
         + move_run_extra,
         **DEFAULT_SUBPROCESS_KWARGS,
