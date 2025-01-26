@@ -1,0 +1,27 @@
+packages:
+  - "apps/**"
+
+catalog:
+  # dependencies
+  "@aptos-labs/ts-sdk": "^1.33.2"
+  "@thalalabs/surf": "1.7.3"
+  "clipanion": "4.0.0-rc.3"
+
+  # devDependencies
+  "@types/node": "^22.0.0"
+  "@typescript-eslint/eslint-plugin": "^6.12.0"
+  "@typescript-eslint/parser": "^6.12.0"
+  "eslint": "^8.57.0"
+  "eslint-config-airbnb-base": "^15.0.0"
+  "eslint-config-airbnb-typescript": "^17.1.0"
+  "eslint-config-next": "14.1.4"
+  "eslint-config-prettier": "^9.0.0"
+  "eslint-config-react-app": "^7.0.1"
+  "eslint-plugin-header": "^3.1.1"
+  "eslint-plugin-import": "^2.29.1"
+  "eslint-plugin-simple-import-sort": "^12.1.1"
+  "prettier": "^3.3.3"
+  "ts-node": "^10.9.2"
+  "tsup": "^7.2.0"
+  "tsx": "^4.7.1"
+  "typescript": "^5.5.4"
