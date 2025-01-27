@@ -590,7 +590,7 @@ module addr::hongbao {
     /// balance back to the owner as a Coin.
     public entry fun reclaim_gift<CoinType>(
         caller: &signer, gift: Object<Gift>
-    ) acquires Gift {
+    ) acquires Gift, Config {
         let gift_address = object::object_address(&gift);
         let gift_ = borrow_global<Gift>(gift_address);
         let caller_address = signer::address_of(caller);
@@ -609,6 +609,9 @@ module addr::hongbao {
         // We destroy the object at the end of this function, so we don't just borrow
         // the gift, we remove it entirely.
         let gift_ = move_from<Gift>(gift_address);
+
+        // Make sure Hongbao is not paused
+        assert!(!paused(), error::invalid_state(E_PAUSED));
 
         // Get the remaining balance.
         let balance = primary_fungible_store::balance(gift_address, gift_.fa_metadata);
