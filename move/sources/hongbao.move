@@ -225,7 +225,7 @@ module addr::hongbao {
     ) acquires Config {
         let coin = coin::withdraw<CoinType>(caller, amount);
         let fa = coin::coin_to_fungible_asset(coin);
-        create_gift(
+        create_gift_internal(
             caller,
             num_envelopes,
             expiration_time,
@@ -253,7 +253,7 @@ module addr::hongbao {
     ) acquires Config {
         let fa = primary_fungible_store::withdraw(caller, fa_metadata, amount);
         // We use a dummy type for the CoinType.
-        create_gift(
+        create_gift_internal(
             caller,
             num_envelopes,
             expiration_time,
@@ -265,7 +265,25 @@ module addr::hongbao {
         );
     }
 
+    /// Deprecated. Use `create_gift_fa` or `create_gift_coin` instead.
     public fun create_gift(
+        _caller: &signer,
+        _num_envelopes: u64,
+        _expiration_time: u64,
+        // The asset we took from the caller.
+        _fa: FungibleAsset,
+        // If the original asset was a coin, this will be the CoinType of that coin.
+        // It's okay to pass it in as a string becuase we only use it to derive other
+        // values (like `original_asset_was_coin`) and emit information in events.
+        _coin_type: Option<String>,
+        _message: String,
+        _paylink_verification_key: Option<vector<u8>>,
+        _keyless_only: bool
+    ): Object<Gift> {
+        abort 0
+    }
+
+    fun create_gift_internal(
         caller: &signer,
         num_envelopes: u64,
         expiration_time: u64,
@@ -812,7 +830,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 100,
@@ -882,7 +900,7 @@ module addr::hongbao {
 
         // Create the gift. Tell it that the original asset was a Coin.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 100,
@@ -949,7 +967,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         // Create the gift. This should fail because the expiration time is in the past.
-        create_gift(
+        create_gift_internal(
             &creator,
             5,
             0,
@@ -989,7 +1007,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         // Create the gift. This should fail because the number of envelopes is bigger than amount.
-        create_gift(
+        create_gift_internal(
             &creator,
             5,
             100,
@@ -1029,7 +1047,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         // Create the gift. This should fail because the num of envelopes is bigger than max.
-        create_gift(
+        create_gift_internal(
             &creator,
             MAX_ENVELOPES + 1,
             100,
@@ -1073,7 +1091,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1136,7 +1154,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1193,7 +1211,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1242,7 +1260,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1304,7 +1322,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1368,7 +1386,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1430,7 +1448,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1485,7 +1503,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1540,7 +1558,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 2,
                 25,
@@ -1593,7 +1611,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         // This should fail with E_MUST_CREATE_AT_LEAST_ONE_ENVELOPE
-        create_gift(
+        create_gift_internal(
             &creator,
             0,
             25,
@@ -1634,7 +1652,7 @@ module addr::hongbao {
         // This should fail because the expiration time is too far out.
         let now = timestamp::now_seconds();
         let too_far_expiration = now + YEAR_IN_SECONDS + 1;
-        create_gift(
+        create_gift_internal(
             &creator,
             5,
             too_far_expiration,
@@ -1677,7 +1695,7 @@ module addr::hongbao {
         let coin = coin::withdraw<AptosCoin>(&creator, 1000);
         let fa = coin::coin_to_fungible_asset(coin);
 
-        create_gift(
+        create_gift_internal(
             &creator,
             5,
             25,
@@ -1722,7 +1740,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1776,7 +1794,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1831,7 +1849,7 @@ module addr::hongbao {
         let fa = coin::coin_to_fungible_asset(coin);
 
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 25,
@@ -1887,7 +1905,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 100,
@@ -1953,7 +1971,7 @@ module addr::hongbao {
 
         // Create the gift.
         let gift =
-            create_gift(
+            create_gift_internal(
                 &creator,
                 5,
                 100,
