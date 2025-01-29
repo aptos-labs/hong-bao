@@ -1,13 +1,19 @@
-# Aptos
+# Aptos / Move
 .aptos
+move/test_output.txt
 
 # Rust
 **/target
 **/*.rs.bk
 **/.idea
 
+# Node
+.env
+.turbo
+node_modules
+
 # Misc
 *.swp
 .DS_Store
 
-move/test_output.txt
+

@@ -1,0 +1,24 @@
+{
+  "name": "hong-bao",
+  "private": true,
+  "packageManager": "pnpm@9.6.0",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "fmt": "prettier --write \"**/*.{js,ts,jsx,tsx}\"",
+    "fmt:check": "prettier --check \"**/*.{js,ts,jsx,tsx}\""
+  },
+  "eslintConfig": {
+    "extends": "react-app",
+    "rules": {
+      "@typescript-eslint/no-unused-vars": "off",
+      "no-throw-literal": "off",
+      "no-multi-str": "off",
+      "no-empty-pattern": "off"
+    }
+  },
+  "devDependencies": {
+    "prettier": "catalog:"
+  }
+}
