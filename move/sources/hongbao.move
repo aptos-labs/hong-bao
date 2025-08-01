@@ -354,9 +354,9 @@ module addr::hongbao {
         let fa_metadata = fungible_asset::metadata_from_asset(&fa);
 
         // Deposit the funds from the caller into the FA store owned by the gift.
-        let primary_store =
+        let _primary_store =
             primary_fungible_store::create_primary_store(gift_address, fa_metadata);
-        fungible_asset::upgrade_store_to_concurrent(&gift_signer, primary_store);
+        // fungible_asset::upgrade_store_to_concurrent(&gift_signer, primary_store);
         primary_fungible_store::deposit(gift_address, fa);
 
         let num_recipient_buckets =
